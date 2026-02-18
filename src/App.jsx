@@ -7,7 +7,6 @@ import DevPage from './pages/DevPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import { ThemeToggle } from './components/ThemeToggle';
-import './App.css';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
