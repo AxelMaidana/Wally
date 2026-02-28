@@ -27,7 +27,7 @@
     --color-zinc-900: #18181b;
     --color-zinc-950: #09090b;
 
-    /* mapping variables */
+    /* Mapping variables */
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -35,6 +35,10 @@
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+
+    /* Premium Radius */
+    --radius-4xl: 2rem;
+    --radius-5xl: 3rem;
 }
 
 @layer base {
@@ -49,37 +53,28 @@
 
 @layer utilities {
     .glass-card {
-        @apply bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all duration-300;
+        @apply bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all duration-200 overflow-hidden;
     }
 
     .glass-card:hover {
-        @apply border-primary/30 dark:border-primary/50 shadow-lg shadow-primary/5;
+        @apply border-primary/40 shadow-lg shadow-primary/5;
     }
 
-    .text-gradient-purple {
-        @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent font-bold;
+    .text-gradient-premium {
+        @apply bg-clip-text text-transparent bg-gradient-to-br from-indigo-500 to-violet-600 dark:from-white dark:to-zinc-400;
     }
 }
 
 :root {
-    --radius: 0.75rem;
-    --background: #fdfdfd;
+    --radius: 1rem;
+    --background: #ffffff;
     --foreground: #09090b;
     --card: #ffffff;
     --card-foreground: #09090b;
-    --popover: #ffffff;
-    --popover-foreground: #09090b;
     --primary: #8b5cf6;
     --primary-foreground: #ffffff;
-    --secondary: #f4f4f5;
-    --secondary-foreground: #18181b;
-    --muted: #f4f4f5;
-    --muted-foreground: #71717a;
-    --accent: #8b5cf6;
-    --accent-foreground: #ffffff;
-    --destructive: #ef4444;
     --border: #e4e4e7;
-    --input: #e4e4e7;
+    --input: #f4f4f5;
     --ring: #8b5cf6;
 }
 
@@ -88,17 +83,8 @@
     --foreground: #fafafa;
     --card: #09090b;
     --card-foreground: #fafafa;
-    --popover: #09090b;
-    --popover-foreground: #fafafa;
     --primary: #8b5cf6;
     --primary-foreground: #ffffff;
-    --secondary: #18181b;
-    --secondary-foreground: #fafafa;
-    --muted: #18181b;
-    --muted-foreground: #a1a1aa;
-    --accent: #8b5cf6;
-    --accent-foreground: #ffffff;
-    --destructive: #7f1d1d;
     --border: #27272a;
     --input: #18181b;
     --ring: #8b5cf6;

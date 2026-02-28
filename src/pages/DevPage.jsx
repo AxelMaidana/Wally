@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
 
 const DevPage = () => {
+    const { user } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -10,7 +12,11 @@ const DevPage = () => {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+                const q = query(
+                    collection(db, 'users'),
+                    where('uid', '==', user?.uid),
+                    orderBy('createdAt', 'desc')
+                );
                 const querySnapshot = await getDocs(q);
                 const usersList = [];
                 querySnapshot.forEach((doc) => {

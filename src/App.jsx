@@ -6,6 +6,9 @@ import AuthPage from './pages/AuthPage';
 import DevPage from './pages/DevPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
+import DataDemo from './pages/DataDemo';
+// import SettingsPage from './pages/SettingsPage';
+import DebugApiPage from './pages/DebugApiPage';
 import { ThemeToggle } from './components/ThemeToggle';
 
 const ProtectedRoute = ({ children }) => {
@@ -62,6 +65,24 @@ const AppContent = () => {
           <Route path="/dev" element={
             <ProtectedRoute>
               <DevPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/data" element={
+            <ProtectedRoute>
+              <DataDemo />
+            </ProtectedRoute>
+          } />
+
+          {/* <Route path="/settings" element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          } /> */}
+
+          <Route path="/api" element={
+            <ProtectedRoute>
+              <DebugApiPage />
             </ProtectedRoute>
           } />
 
