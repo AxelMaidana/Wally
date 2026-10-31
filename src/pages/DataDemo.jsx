@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useFirestore } from '../hooks/useFirestore';
+import { useSupabaseQuery } from '../hooks/useSupabaseQuery';
 import { useAuth } from '../context/AuthContext';
 import { MessageSquare, Users, Activity, Clock } from 'lucide-react';
 
@@ -11,19 +11,19 @@ const DataDemo = () => {
         data: messages,
         loading: messagesLoading,
         error: messagesError
-    } = useFirestore('messages', {
-        orderByField: 'createdAt',
+    } = useSupabaseQuery('transactions', {
+        orderByField: 'created_at',
         limitCount: 20,
-        conditions: [['uid', '==', user?.uid]]
+        conditions: [['user_id', '==', user?.id]]
     });
 
     const {
         data: users,
         loading: usersLoading,
         error: usersError
-    } = useFirestore('users', {
+    } = useSupabaseQuery('profiles', {
         limitCount: 20,
-        conditions: [['uid', '==', user?.uid]]
+        conditions: [['id', '==', user?.id]]
     });
 
     const currentData = activeTab === 'messages' ? messages : users;
@@ -34,8 +34,8 @@ const DataDemo = () => {
         <div className="p-8 max-w-6xl mx-auto">
             <div className="flex justify-between items-center mb-10">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-white tracking-tight">Firestore Explorer</h1>
-                    <p className="text-zinc-400 mt-2">Explora los datos en tiempo real de tus colecciones de Firebase</p>
+                    <h1 className="text-4xl font-extrabold text-white tracking-tight">Supabase Explorer</h1>
+                    <p className="text-zinc-400 mt-2">Explora los datos en tiempo real de tus tablas de Supabase</p>
                 </div>
                 <div className="flex items-center gap-2 bg-zinc-900/50 p-1.5 rounded-2xl border border-zinc-800">
                     <button
@@ -90,14 +90,14 @@ const DataDemo = () => {
                                     <td colSpan="100%" className="px-8 py-20 text-center">
                                         <div className="flex flex-col items-center gap-4 text-zinc-500">
                                             <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-                                            <span className="font-medium">Sincronizando con Firestore...</span>
+                                            <span className="font-medium">Sincronizando con Supabase...</span>
                                         </div>
                                     </td>
                                 </tr>
                             ) : currentData.length === 0 ? (
                                 <tr>
                                     <td colSpan="100%" className="px-8 py-20 text-center text-zinc-500 italic">
-                                        No se encontraron documentos en la colección "{activeTab}"
+                                        No se encontraron registros en la tabla "{activeTab === 'messages' ? 'transactions' : 'profiles'}"
                                     </td>
                                 </tr>
                             ) : (
@@ -105,10 +105,7 @@ const DataDemo = () => {
                                     <tr key={row.id || idx} className="hover:bg-zinc-800/20 transition-colors group">
                                         {Object.entries(row).map(([key, value], i) => (
                                             <td key={i} className="px-8 py-6 text-zinc-300 whitespace-nowrap">
-                                                {typeof value === 'object' && value?.toDate
-                                                    ? value.toDate().toLocaleString()
-                                                    : JSON.stringify(value).replace(/^"|"$/g, '')
-                                                }
+                                                {JSON.stringify(value).replace(/^"|"$/g, '')}
                                             </td>
                                         ))}
                                     </tr>

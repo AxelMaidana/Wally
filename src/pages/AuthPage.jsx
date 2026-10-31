@@ -7,6 +7,7 @@ const AuthPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [info, setInfo] = useState('');
     const [loading, setLoading] = useState(false);
 
     const { user, login, signup, loginWithGoogle } = useAuth();
@@ -17,15 +18,19 @@ const AuthPage = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setInfo('');
         setLoading(true);
         try {
             if (isLogin) {
                 await login(email, password);
             } else {
-                await signup(email, password);
+                const { needsConfirmation } = await signup(email, password);
+                if (needsConfirmation) {
+                    setInfo('Te enviamos un email para confirmar tu cuenta. Revisá tu bandeja de entrada.');
+                }
             }
         } catch (err) {
-            setError(err.message.replace('Firebase:', ''));
+            setError(err.message);
         } finally {
             setLoading(false);
         }
@@ -33,10 +38,11 @@ const AuthPage = () => {
 
     const handleGoogleLogin = async () => {
         setError('');
+        setInfo('');
         try {
             await loginWithGoogle();
         } catch (err) {
-            setError(err.message.replace('Firebase:', ''));
+            setError(err.message);
         }
     };
 
@@ -59,6 +65,12 @@ const AuthPage = () => {
                 {error && (
                     <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm text-center">
                         {error}
+                    </div>
+                )}
+
+                {info && (
+                    <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/20 text-green-600 dark:text-green-400 p-3 rounded-xl text-sm text-center">
+                        {info}
                     </div>
                 )}
 

@@ -1,37 +1,37 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useFirestore } from '../hooks/useFirestore';
+import { useSupabaseQuery } from '../hooks/useSupabaseQuery';
 
 const DebugApiPage = () => {
     const { user, userData } = useAuth();
 
-    const { data: messages, loading: messagesLoading, error: messagesError } = useFirestore('messages', {
+    const { data: messages, loading: messagesLoading, error: messagesError } = useSupabaseQuery('transactions', {
         limitCount: 5,
-        conditions: [['uid', '==', user?.uid]]
+        conditions: [['user_id', '==', user?.id]]
     });
-    const { data: users, loading: usersLoading, error: usersError } = useFirestore('users', {
+    const { data: users, loading: usersLoading, error: usersError } = useSupabaseQuery('profiles', {
         limitCount: 5,
-        conditions: [['uid', '==', user?.uid]]
+        conditions: [['id', '==', user?.id]]
     });
 
     const apiResponse = {
         timestamp: new Date().toISOString(),
         auth: {
             isAuthenticated: !!user,
-            uid: user?.uid || null,
+            uid: user?.id || null,
             email: user?.email || null,
             profile: userData || null
         },
-        firestore: {
+        supabase: {
             status: "online",
-            collections: {
-                messages: {
+            tables: {
+                transactions: {
                     count: messages.length,
                     loading: messagesLoading,
                     error: messagesError,
                     sample: messages
                 },
-                users: {
+                profiles: {
                     count: users.length,
                     loading: usersLoading,
                     error: usersError,

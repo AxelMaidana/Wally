@@ -1,34 +1,26 @@
 import { useState, useEffect } from 'react';
-import { db } from '../services/firebase';
-import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
-import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabase';
 
 const DevPage = () => {
-    const { user } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         const fetchUsers = async () => {
-            try {
-                const q = query(
-                    collection(db, 'users'),
-                    where('uid', '==', user?.uid),
-                    orderBy('createdAt', 'desc')
-                );
-                const querySnapshot = await getDocs(q);
-                const usersList = [];
-                querySnapshot.forEach((doc) => {
-                    usersList.push({ id: doc.id, ...doc.data() });
-                });
-                setUsers(usersList);
-            } catch (err) {
-                console.error("Error fetching users:", err);
-                setError("Failed to load users. Are firestore rules set?");
-            } finally {
-                setLoading(false);
+            // RLS returns every profile to admins and only their own to everyone else
+            const { data, error: queryError } = await supabase
+                .from('profiles')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (queryError) {
+                console.error("Error fetching users:", queryError);
+                setError("Failed to load users. Are the RLS policies set?");
+            } else {
+                setUsers(data);
             }
+            setLoading(false);
         };
 
         fetchUsers();
@@ -61,19 +53,19 @@ const DevPage = () => {
                                     <th className="px-8 py-4">Avatar</th>
                                     <th className="px-8 py-4">Nombre / Email</th>
                                     <th className="px-8 py-4">Rol</th>
-                                    <th className="px-8 py-4">ID de Firebase</th>
+                                    <th className="px-8 py-4">ID de Supabase</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-sm">
                                 {users.map((u) => (
                                     <tr key={u.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors group">
                                         <td className="px-8 py-5">
-                                            <img src={u.photoURL || `https://ui-avatars.com/api/?name=${u.displayName || u.email}`} className="w-10 h-10 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm" alt="avatar" />
+                                            <img src={u.photo_url || `https://ui-avatars.com/api/?name=${u.display_name || u.email}`} className="w-10 h-10 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm" alt="avatar" />
                                         </td>
                                         <td className="px-8 py-5">
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-black dark:group-hover:text-white transition-colors">
-                                                    {u.displayName || 'No name'}
+                                                    {u.display_name || 'No name'}
                                                 </span>
                                                 <span className="text-xs text-zinc-500">{u.email}</span>
                                             </div>

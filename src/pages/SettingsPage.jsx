@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../services/firebase';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { supabase } from '../services/supabase';
 import { motion } from 'motion/react';
 import {
     User,
@@ -39,18 +38,33 @@ const SettingsPage = () => {
     useEffect(() => {
         if (!user) return;
 
-        // Listen for changes in user data specifically for the telegramToken
-        const userRef = doc(db, 'users', user.uid);
-        const unsubscribe = onSnapshot(userRef, (doc) => {
-            if (doc.exists()) {
-                const data = doc.data();
-                if (data.telegramToken) {
-                    setTelegramToken(data.telegramToken);
-                }
+        const applyProfile = (profile) => {
+            if (profile?.telegram_token) {
+                setTelegramToken(profile.telegram_token);
             }
-        });
+        };
 
-        return () => unsubscribe();
+        supabase
+            .from('profiles')
+            .select('telegram_token')
+            .eq('id', user.id)
+            .maybeSingle()
+            .then(({ data }) => applyProfile(data));
+
+        // Listen for changes in the profile specifically for the telegram_token
+        const channel = supabase
+            .channel(`profile-${user.id}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'profiles',
+                filter: `id=eq.${user.id}`
+            }, (payload) => applyProfile(payload.new))
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user]);
 
     const handleSave = async (e) => {
@@ -59,11 +73,14 @@ const SettingsPage = () => {
 
         setLoading(true);
         try {
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
-                telegramToken: telegramToken,
-                updatedAt: new Date()
-            });
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    telegram_token: telegramToken,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+            if (error) throw error;
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
         } catch (error) {
@@ -75,7 +92,7 @@ const SettingsPage = () => {
     };
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(user.uid);
+        navigator.clipboard.writeText(user.id);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -114,10 +131,10 @@ const SettingsPage = () => {
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest block mb-2">Firebase User ID (UID)</label>
+                            <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest block mb-2">Supabase User ID</label>
                             <div className="flex gap-2">
                                 <div className="flex-1 p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl text-zinc-400 font-mono text-sm overflow-hidden truncate">
-                                    {user?.uid}
+                                    {user?.id}
                                 </div>
                                 <button
                                     onClick={copyToClipboard}
@@ -200,7 +217,7 @@ const SettingsPage = () => {
                     <div>
                         <h4 className="text-white font-bold text-sm">Privacidad y Seguridad</h4>
                         <p className="text-zinc-500 text-xs mt-1 leading-relaxed">
-                            Tus tokens se guardan de forma encriptada en nuestra base de datos segura de Firebase Firestore. Nunca compartas tu Bot Token con nadie.
+                            Tus tokens se guardan de forma encriptada en nuestra base de datos segura de Supabase. Nunca compartas tu Bot Token con nadie.
                         </p>
                     </div>
                 </motion.div>

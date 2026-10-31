@@ -31,14 +31,14 @@ const PrivacyPage = () => {
                 <section className="space-y-4">
                     <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">3. Protección de la Información</h2>
                     <p>
-                        Implementamos medidas de seguridad robustas a través de Firebase de Google para proteger tus datos contra el acceso no autorizado, alteración o destrucción. Tus registros de gastos son privados y solo tú puedes acceder a ellos tras autenticarte.
+                        Implementamos medidas de seguridad robustas a través de Supabase para proteger tus datos contra el acceso no autorizado, alteración o destrucción. Tus registros de gastos son privados y solo tú puedes acceder a ellos tras autenticarte.
                     </p>
                 </section>
 
                 <section className="space-y-4">
                     <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">4. Servicios de Terceros</h2>
                     <p>
-                        Wally utiliza servicios de terceros como WhatsApp (Meta), OpenAI/Google (para procesamiento de IA) y Firebase. Cada uno de estos proveedores tiene sus propias políticas de privacidad que te recomendamos revisar. No vendemos tus datos a terceros.
+                        Wally utiliza servicios de terceros como WhatsApp (Meta), OpenAI/Google (para procesamiento de IA) y Supabase. Cada uno de estos proveedores tiene sus propias políticas de privacidad que te recomendamos revisar. No vendemos tus datos a terceros.
                     </p>
                 </section>
 

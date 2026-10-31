@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { db } from '../services/firebase';
-import { collection, getDocs, limit, query } from 'firebase/firestore';
-import { useFirestore } from '../hooks/useFirestore';
+import { supabase } from '../services/supabase';
+import { useSupabaseQuery } from '../hooks/useSupabaseQuery';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
 import { motion } from 'motion/react';
@@ -109,7 +108,7 @@ const StatCard = ({ title, value, icon, trend, trendLabel, chartData, inverseTre
 
 const Dashboard = () => {
     const { user, userData } = useAuth();
-    const [firebaseStatus, setFirebaseStatus] = useState("Checking...");
+    const [dbStatus, setDbStatus] = useState("Checking...");
 
     // Optimization: Only fetch messages from the beginning of the current month
     const startOfMonthDate = useMemo(() => {
@@ -117,12 +116,12 @@ const Dashboard = () => {
         return new Date(now.getFullYear(), now.getMonth(), 1);
     }, []);
 
-    // Fetch user messages (filtered by UID and performance)
-    const { data: messages, loading: messagesLoading } = useFirestore('messages', {
-        orderByField: 'createdAt',
+    // Fetch user transactions (filtered by user and performance)
+    const { data: messages, loading: messagesLoading } = useSupabaseQuery('transactions', {
+        orderByField: 'created_at',
         conditions: [
-            ['uid', '==', user?.uid],
-            ['createdAt', '>=', startOfMonthDate.toISOString()]
+            ['user_id', '==', user?.id],
+            ['created_at', '>=', startOfMonthDate.toISOString()]
         ]
     });
 
@@ -153,10 +152,7 @@ const Dashboard = () => {
         const history = {}; // Map for sparkline
 
         messages.forEach(msg => {
-            let msgDate;
-            if (msg.createdAt?.toDate) msgDate = msg.createdAt.toDate();
-            else if (typeof msg.createdAt === 'string') msgDate = new Date(msg.createdAt.trim());
-            else msgDate = new Date();
+            const msgDate = msg.created_at ? new Date(msg.created_at) : new Date();
 
             const amount = parseFloat(msg.monto) || 0;
             const isGasto = msg.tipo?.toLowerCase() === 'gasto';
@@ -206,21 +202,16 @@ const Dashboard = () => {
     }, [messages]);
 
     useEffect(() => {
-        async function checkFirebase() {
-            try {
-                // Use 'messages' to check status since 'expenses' doesn't exist
-                const q = query(collection(db, "messages"), limit(1));
-                await getDocs(q);
-                setFirebaseStatus("Online");
-            } catch (error) {
-                if (error.code === 'permission-denied') setFirebaseStatus("System Online");
-                else setFirebaseStatus("Offline");
-            }
+        async function checkDatabase() {
+            const { error } = await supabase
+                .from('transactions')
+                .select('id', { count: 'exact', head: true });
+            setDbStatus(error ? "Offline" : "Online");
         }
-        checkFirebase();
+        checkDatabase();
     }, []);
 
-    const userFirstName = userData?.displayName?.split(' ')[0] || 'Axel';
+    const userFirstName = userData?.display_name?.split(' ')[0] || 'Axel';
 
     // Get only last 5 for the table
     const recentMessages = messages.slice(0, 5);
@@ -248,9 +239,9 @@ const Dashboard = () => {
                     </button>
 
                     <div className="flex items-center gap-2.5 px-4 py-2 bg-secondary border border-border rounded-2xl">
-                        <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${firebaseStatus === 'Offline' ? 'bg-red-500' : 'bg-green-500'
+                        <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${dbStatus === 'Offline' ? 'bg-red-500' : 'bg-green-500'
                             }`}></div>
-                        <span className="text-xs font-bold text-foreground uppercase tracking-widest">{firebaseStatus}</span>
+                        <span className="text-xs font-bold text-foreground uppercase tracking-widest">{dbStatus}</span>
                     </div>
                 </div>
             </motion.div>

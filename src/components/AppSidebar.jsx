@@ -50,7 +50,7 @@ export function AppSidebar({ open, setOpen }) {
         )}>
             <div className="relative flex-shrink-0">
                 <img
-                    src={user?.photoURL || "https://ui-avatars.com/api/?name=" + (user?.email || "U")}
+                    src={userData?.photo_url || "https://ui-avatars.com/api/?name=" + (user?.email || "U")}
                     className="h-9 w-9 flex-shrink-0 rounded-xl object-cover border-2 border-zinc-100 dark:border-zinc-800 shadow-sm"
                     alt="Avatar"
                 />
@@ -66,7 +66,7 @@ export function AppSidebar({ open, setOpen }) {
                         className="flex flex-col items-start justify-center overflow-hidden"
                     >
                         <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate w-full tracking-tight">
-                            {userData?.displayName || user?.displayName || 'Usuario'}
+                            {userData?.display_name || user?.user_metadata?.full_name || 'Usuario'}
                         </span>
                         <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-500 truncate w-full">
                             {user?.email}

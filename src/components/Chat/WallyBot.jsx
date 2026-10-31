@@ -12,7 +12,6 @@ import {
     Sparkles,
     Trash2
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import { processChatMessage } from '../../services/aiService';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { cn } from '../../lib/utils';
@@ -26,7 +25,6 @@ export const WallyBot = () => {
     const [inputValue, setInputValue] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef(null);
-    const { user } = useAuth();
     const { isRecording, startRecording, stopRecording, convertBlobToBase64, audioBlob, setAudioBlob } = useVoiceRecorder();
 
     // Auto-scroll to bottom
@@ -55,7 +53,7 @@ export const WallyBot = () => {
             setInputValue("");
             setIsLoading(true);
 
-            const response = await processChatMessage(textToSend, user?.uid, chatHistory);
+            const response = await processChatMessage(textToSend, chatHistory);
 
             const botMsg = { id: Date.now() + 1, text: response.text, isBot: true, status: response.status };
             setMessages(prev => [...prev, botMsg]);
@@ -85,7 +83,6 @@ export const WallyBot = () => {
 
             const response = await processChatMessage(
                 { base64, mimeType: audioBlob.type },
-                user?.uid,
                 chatHistory,
                 true
             );
@@ -270,7 +267,7 @@ export const WallyBot = () => {
                                 </div>
                             </div>
                             <p className="text-[9px] text-center text-zinc-400 mt-2 font-medium uppercase tracking-widest italic">
-                                Desarrollado con Gemini 1.5 Flash
+                                Desarrollado con Gemini 2.5 Flash
                             </p>
                         </div>
                     </motion.div>
