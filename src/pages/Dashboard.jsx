@@ -1,369 +1,590 @@
 import { useState, useEffect, useMemo } from 'react';
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { supabase } from '../services/supabase';
 import { useSupabaseQuery } from '../hooks/useSupabaseQuery';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
-import { motion } from 'motion/react';
+import { openWallyBot } from '../components/Chat/wallyEvents';
+import { Skeleton } from '../components/ui/skeleton';
+import { AnimatedNumber } from '../components/ui/animated-number';
+import { sidebarSpring, softSpring, iosEase } from '../lib/motion';
 import {
     TrendingUp,
     TrendingDown,
-    Wallet,
-    ArrowRightLeft,
-    Calendar,
-    Activity,
-    ChevronRight,
-    RefreshCcw,
     Plus,
-    MessageSquare
+    MessageCircle,
+    Coffee,
+    ShoppingCart,
+    Car,
+    Home,
+    HeartPulse,
+    Ticket,
+    Zap,
+    Briefcase,
+    Shirt,
+    Circle
 } from 'lucide-react';
 
-const container = {
-    hidden: { opacity: 0 },
-    show: {
-        opacity: 1,
-        transition: {
-            staggerChildren: 0.1
-        }
-    }
+const DAYS_IN_CHART = 14;
+
+const categoryIcons = {
+    comida: Coffee,
+    cafe: Coffee,
+    café: Coffee,
+    restaurante: Coffee,
+    supermercado: ShoppingCart,
+    compras: ShoppingCart,
+    transporte: Car,
+    nafta: Car,
+    alquiler: Home,
+    hogar: Home,
+    salud: HeartPulse,
+    ocio: Ticket,
+    entretenimiento: Ticket,
+    servicios: Zap,
+    sueldo: Briefcase,
+    trabajo: Briefcase,
+    ropa: Shirt,
 };
 
-const item = {
-    hidden: { y: 20, opacity: 0 },
-    show: { y: 0, opacity: 1 }
+// Ring colors for the category breakdown, from most to least spent
+const ringColors = ['#f5b26b', '#8fa6c8', '#e8a0a0', '#b8c99a', 'rgba(255,255,255,0.35)'];
+
+const sameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+const formatPercent = (value) => `${Math.round(value)}%`;
+
+const capitalize = (text) => text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+
+const CategoryIcon = ({ categoria, className }) => {
+    const Icon = categoryIcons[categoria?.toLowerCase()] || Circle;
+    return <Icon className={className} strokeWidth={1.75} />;
 };
 
-const Sparkline = ({ data, color, isNegative }) => {
-    if (!data || data.length < 2) return null;
-    const max = Math.max(...data) || 1;
-    const min = Math.min(...data);
-    const range = max - min || 1;
-    const width = 80;
-    const height = 24;
-    const points = data.map((val, i) => ({
-        x: (i / (data.length - 1)) * width,
-        y: height - ((val - min) / range) * height
-    }));
-    const d = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+const Trend = ({ value, inverse = false, suffix }) => {
+    if (value === null) return <span className="text-ink-3">{suffix}</span>;
+    const up = value >= 0;
+    const good = inverse ? !up : up;
+    const Icon = up ? TrendingUp : TrendingDown;
+    return (
+        <span className={`inline-flex items-center gap-1 font-medium ${good ? 'text-ingreso' : 'text-gasto'}`}>
+            <Icon size={14} strokeWidth={2} />
+            {Math.abs(value)}% <span className="text-ink-3 font-normal">{suffix}</span>
+        </span>
+    );
+};
+
+const StatTile = ({ label, value, footer, loading }) => (
+    <div className="glass-card p-5 flex flex-col gap-1">
+        <p className="text-sm text-ink-2">{label}</p>
+        {loading ? (
+            <>
+                <Skeleton className="h-8 my-[3px] w-3/4" />
+                <Skeleton className="h-3 w-1/2 mt-2.5" />
+            </>
+        ) : (
+            <>
+                <p className="text-[32px] leading-tight font-semibold tracking-tight text-ink tabular-nums">
+                    <AnimatedNumber value={value} format={formatCurrency} />
+                </p>
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.35, duration: 0.3 }}
+                    className="text-[13px] mt-1"
+                >
+                    {footer}
+                </motion.p>
+            </>
+        )}
+    </div>
+);
+
+// Placeholder bar heights so the loading chart looks like a chart, not a flat line
+const skeletonBars = [55, 30, 70, 45, 85, 25, 60, 40, 75, 35, 50, 65, 30, 45];
+
+// Capsule bars, like the iOS Screen Time and Health widgets
+const SpendingBars = ({ days, loading }) => {
+    const [hovered, setHovered] = useState(null);
+    const max = Math.max(...days.map(d => d.total), 1);
+    const total = days.reduce((sum, d) => sum + d.total, 0);
+    const average = total / days.length;
 
     return (
-        <div className="flex items-center">
-            <svg width={width} height={height} className="overflow-visible">
-                <motion.path
-                    d={d}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={isNegative ? 'text-red-500' : 'text-green-500'}
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: 1 }}
-                    transition={{ duration: 1.5, ease: "easeInOut" }}
-                />
-            </svg>
+        <div className="glass-card p-5 md:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-2 mb-6">
+                <div>
+                    <p className="text-sm text-ink-2">Gastos de los últimos {DAYS_IN_CHART} días</p>
+                    {loading
+                        ? <Skeleton className="h-8 my-[3px] w-40" />
+                        : (
+                            <p className="text-[32px] leading-tight font-semibold tracking-tight tabular-nums">
+                                <AnimatedNumber value={total} format={formatCurrency} />
+                            </p>
+                        )}
+                </div>
+                {loading
+                    ? <Skeleton className="h-3 w-32 mb-1" />
+                    : (
+                        <p className="text-[13px] text-ink-2 tabular-nums">
+                            Promedio diario <AnimatedNumber value={average} format={formatCurrency} />
+                        </p>
+                    )}
+            </div>
+
+            <div className="relative h-44">
+                {loading ? (
+                    <div className="flex items-end justify-between gap-1.5 md:gap-2.5 h-full">
+                        {skeletonBars.slice(0, DAYS_IN_CHART).map((height, i) => (
+                            <div key={i} className="flex-1 h-full flex items-end justify-center">
+                                <Skeleton className="w-full max-w-7" style={{ height: `${height}%` }} />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <>
+                        <motion.div
+                            className="absolute inset-x-0 border-t border-dashed border-hairline"
+                            initial={{ bottom: '0%', opacity: 0 }}
+                            animate={{ bottom: `${(average / max) * 100}%`, opacity: 1 }}
+                            transition={{ ...softSpring, delay: 0.3 }}
+                            aria-hidden="true"
+                        />
+                        <LayoutGroup id="spending-bars">
+                            <ol
+                                className="relative flex items-end justify-between gap-1.5 md:gap-2.5 h-full"
+                                onMouseLeave={() => setHovered(null)}
+                            >
+                                {days.map((day, i) => {
+                                    const height = day.total > 0 ? Math.max((day.total / max) * 100, 6) : 4;
+                                    return (
+                                        <li
+                                            key={day.key}
+                                            className="relative flex-1 h-full flex flex-col justify-end items-center"
+                                            onMouseEnter={() => setHovered(i)}
+                                        >
+                                            <span className="sr-only">{day.longLabel}: {formatCurrency(day.total)}</span>
+                                            <AnimatePresence>
+                                                {hovered === i && (
+                                                    <motion.span
+                                                        layoutId="bar-tip"
+                                                        initial={{ opacity: 0, scale: 0.9 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        exit={{ opacity: 0, scale: 0.9 }}
+                                                        transition={sidebarSpring}
+                                                        className="glass-panel absolute z-10 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums pointer-events-none"
+                                                        style={{ bottom: `calc(${height}% + 8px)` }}
+                                                        aria-hidden="true"
+                                                    >
+                                                        {formatCurrency(day.total)}
+                                                    </motion.span>
+                                                )}
+                                            </AnimatePresence>
+                                            <motion.div
+                                                initial={{ height: '0%' }}
+                                                animate={{ height: `${height}%` }}
+                                                transition={{ ...softSpring, delay: i * 0.03 }}
+                                                className={`w-full max-w-7 rounded-full transition-colors ${day.isToday
+                                                    ? 'bg-ink shadow-[0_8px_24px_-6px_rgba(255,255,255,0.35)]'
+                                                    : hovered === i ? 'bg-ink/40 border border-hairline' : 'bg-tile-strong border border-hairline'
+                                                    }`}
+                                            />
+                                        </li>
+                                    );
+                                })}
+                            </ol>
+                        </LayoutGroup>
+                    </>
+                )}
+            </div>
+            <ol className="flex justify-between gap-1.5 md:gap-2.5 mt-3" aria-hidden="true">
+                {days.map((day, i) => (
+                    <li
+                        key={day.key}
+                        className={`flex-1 text-center text-[11px] transition-colors ${day.isToday || hovered === i ? 'text-ink font-semibold' : 'text-ink-3'}`}
+                    >
+                        {day.shortLabel}
+                    </li>
+                ))}
+            </ol>
         </div>
     );
 };
 
-const StatCard = ({ title, value, icon, trend, trendLabel, chartData, inverseTrend = false }) => {
-    const isPositive = trend >= 0;
-    const isGood = inverseTrend ? !isPositive : isPositive;
+const CategoryRing = ({ categories, total, loading }) => {
+    const radius = 52;
+    const circumference = 2 * Math.PI * radius;
+    const segments = categories.map((cat, i) => ({
+        ...cat,
+        length: (cat.total / total) * circumference,
+        offset: categories.slice(0, i).reduce((sum, c) => sum + (c.total / total) * circumference, 0)
+    }));
 
     return (
-        <motion.div
-            variants={item}
-            className="glass-card p-6 flex flex-col gap-5 group relative overflow-hidden"
-        >
-            <div className="flex justify-between items-start relative z-10">
-                <div className="p-3 bg-secondary rounded-2xl border border-border text-primary group-hover:scale-110 transition-transform duration-500">
-                    {icon}
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${isGood
-                        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                        : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                        }`}>
-                        {isPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                        <span>{Math.abs(trend)}%</span>
+        <div className="glass-card p-5 md:p-6 flex flex-col">
+            <p className="text-[17px] font-semibold mb-5">En qué gastás</p>
+            {loading ? (
+                <div className="flex flex-col items-center gap-5">
+                    <div className="skeleton w-32 h-32 rounded-full flex items-center justify-center" aria-hidden="true">
+                        <span className="w-[100px] h-[100px] rounded-full bg-[var(--panel)]" />
                     </div>
-                    {chartData && (
-                        <div className="opacity-40 group-hover:opacity-100 transition-opacity pr-1">
-                            <Sparkline data={chartData} isNegative={inverseTrend ? isPositive : !isPositive} />
-                        </div>
-                    )}
+                    <div className="w-full space-y-3.5 py-0.5">
+                        {[70, 55, 40].map((width) => (
+                            <div key={width} className="flex items-center gap-2.5">
+                                <Skeleton className="w-2.5 h-2.5" />
+                                <Skeleton className="h-3" style={{ width: `${width}%` }} />
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            ) : categories.length === 0 ? (
+                <p className="text-sm text-ink-2">Cuando registres gastos este mes, vas a ver acá en qué categorías se va tu plata.</p>
+            ) : (
+                <div className="flex flex-col items-center gap-5">
+                    <svg viewBox="0 0 128 128" className="w-32 h-32 shrink-0 -rotate-90" aria-hidden="true">
+                        <circle cx="64" cy="64" r={radius} fill="none" stroke="var(--hairline)" strokeWidth="12" />
+                        {segments.map((seg, i) => (
+                            <motion.circle
+                                key={seg.name}
+                                cx="64" cy="64" r={radius}
+                                fill="none"
+                                stroke={ringColors[i]}
+                                strokeWidth="12"
+                                strokeLinecap="round"
+                                initial={{ strokeDasharray: `0 ${circumference}`, strokeDashoffset: -seg.offset }}
+                                animate={{
+                                    strokeDasharray: `${Math.max(seg.length - 4, 1)} ${circumference}`,
+                                    strokeDashoffset: -seg.offset
+                                }}
+                                transition={{ duration: 0.8, ease: iosEase, delay: 0.15 + i * 0.1 }}
+                            />
+                        ))}
+                    </svg>
+                    <ul className="w-full space-y-2.5">
+                        {categories.map((cat, i) => (
+                            <li key={cat.name} className="flex items-center gap-2.5 text-sm">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ringColors[i] }} />
+                                <span className="truncate flex-1">{capitalize(cat.name)}</span>
+                                <AnimatedNumber
+                                    value={(cat.total / total) * 100}
+                                    format={formatPercent}
+                                    className="text-ink-2 tabular-nums"
+                                />
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+};
 
-            <div className="relative z-10 pt-2">
-                <p className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase mb-1">{title}</p>
-                <h3 className="text-4xl font-bold tracking-tight text-foreground">{value}</h3>
-            </div>
+const RecentActivity = ({ rows, loading }) => {
+    const [hovered, setHovered] = useState(null);
 
-            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-tight flex items-center gap-1 px-0.5">
-                <Calendar size={10} /> {trendLabel || 'Comparado a ayer'}
-            </p>
-        </motion.div>
+    return (
+        <div className="glass-card p-2 md:p-3">
+            <p className="text-[17px] font-semibold px-3 pt-3 pb-2">Últimos movimientos</p>
+            {loading ? (
+                <ul aria-hidden="true">
+                    {[60, 45, 70, 50].map((width) => (
+                        <li key={width} className="flex items-center gap-3 px-3 py-3">
+                            <Skeleton className="w-10 h-10 shrink-0" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-3.5" style={{ width: `${width}%` }} />
+                                <Skeleton className="h-3 w-1/3" />
+                            </div>
+                            <Skeleton className="h-3.5 w-16" />
+                        </li>
+                    ))}
+                </ul>
+            ) : rows.length === 0 ? (
+                <div className="px-3 py-8 flex flex-col items-start gap-4">
+                    <p className="text-sm text-ink-2 max-w-sm">
+                        Todavía no registraste nada este mes. Contale a Wally tu primer gasto, por ejemplo "gasté 4500 en el súper".
+                    </p>
+                    <button type="button" className="pill-button" onClick={openWallyBot}>
+                        <MessageCircle size={16} /> Hablar con Wally
+                    </button>
+                </div>
+            ) : (
+                <LayoutGroup id="recent-activity">
+                    <ul onMouseLeave={() => setHovered(null)}>
+                        {/* New movements (e.g. saved from the chat) slide in; the first load doesn't */}
+                        <AnimatePresence initial={false}>
+                            {rows.map((row) => {
+                                const isGasto = row.tipo === 'gasto';
+                                return (
+                                    <motion.li
+                                        key={row.id}
+                                        layout
+                                        initial={{ opacity: 0, y: -12, scale: 0.98 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.98 }}
+                                        transition={sidebarSpring}
+                                        onMouseEnter={() => setHovered(row.id)}
+                                        className="relative flex items-center gap-3 px-3 py-3 rounded-2xl"
+                                    >
+                                        {hovered === row.id && (
+                                            <motion.span
+                                                layoutId="activity-hover"
+                                                transition={sidebarSpring}
+                                                className="absolute inset-0 rounded-2xl bg-tile"
+                                            />
+                                        )}
+                                        <span className="relative w-10 h-10 rounded-full bg-tile-strong flex items-center justify-center shrink-0">
+                                            <CategoryIcon categoria={row.categoria} className="w-[18px] h-[18px] text-ink" />
+                                        </span>
+                                        <div className="relative flex-1 min-w-0">
+                                            <p className="text-[15px] font-medium truncate">{row.descripcion || 'Sin descripción'}</p>
+                                            <p className="text-[13px] text-ink-2 truncate">
+                                                {capitalize(row.categoria)}, {new Date(row.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                                            </p>
+                                        </div>
+                                        <p className={`relative text-[15px] font-semibold tabular-nums ${isGasto ? 'text-ink' : 'text-ingreso'}`}>
+                                            {isGasto ? '−' : '+'}{formatCurrency(row.monto || 0)}
+                                        </p>
+                                    </motion.li>
+                                );
+                            })}
+                        </AnimatePresence>
+                    </ul>
+                </LayoutGroup>
+            )}
+        </div>
     );
 };
 
 const Dashboard = () => {
     const { user, userData } = useAuth();
-    const [dbStatus, setDbStatus] = useState("Checking...");
+    const [dbOnline, setDbOnline] = useState(null);
 
-    // Optimization: Only fetch messages from the beginning of the current month
-    const startOfMonthDate = useMemo(() => {
+    // Enough history for the chart and the current month
+    const since = useMemo(() => {
         const now = new Date();
-        return new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const chartStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (DAYS_IN_CHART - 1));
+        return chartStart < startOfMonth ? chartStart : startOfMonth;
     }, []);
 
-    // Fetch user transactions (filtered by user and performance)
-    const { data: messages, loading: messagesLoading } = useSupabaseQuery('transactions', {
+    const { data: transactions, loading } = useSupabaseQuery('transactions', {
         orderByField: 'created_at',
         conditions: [
             ['user_id', '==', user?.id],
-            ['created_at', '>=', startOfMonthDate.toISOString()]
+            ['created_at', '>=', since.toISOString()]
         ]
     });
 
-    // Calculate Dynamic Stats
     const stats = useMemo(() => {
-        if (!messages || messages.length === 0) {
-            return {
-                daily: 0,
-                monthly: 0,
-                transactionCount: 0,
-                savings: 0,
-                trend: 0
-            };
-        }
-
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        let dailyTotal = 0;
+        let todayTotal = 0;
         let yesterdayTotal = 0;
-        let monthlyExpenses = 0;
-        let monthlyIncome = 0;
-        let count = 0;
+        let monthExpenses = 0;
+        let monthIncome = 0;
+        let monthCount = 0;
+        const byCategory = {};
+        const monthRows = [];
 
-        const history = {}; // Map for sparkline
+        transactions.forEach(tx => {
+            const date = new Date(tx.created_at);
+            const amount = Number(tx.monto) || 0;
+            const isGasto = tx.tipo === 'gasto';
 
-        messages.forEach(msg => {
-            const msgDate = msg.created_at ? new Date(msg.created_at) : new Date();
+            if (isGasto && sameDay(date, today)) todayTotal += amount;
+            if (isGasto && sameDay(date, yesterday)) yesterdayTotal += amount;
 
-            const amount = parseFloat(msg.monto) || 0;
-            const isGasto = msg.tipo?.toLowerCase() === 'gasto';
-            const dateKey = msgDate.toDateString();
-
-            if (isGasto) {
-                history[dateKey] = (history[dateKey] || 0) + amount;
-                if (msgDate >= today) dailyTotal += amount;
-                else if (msgDate >= yesterday && msgDate < today) yesterdayTotal += amount;
-            }
-
-            if (msgDate >= startOfMonth) {
-                if (isGasto) monthlyExpenses += amount;
-                else monthlyIncome += amount;
-                count++;
+            if (date >= startOfMonth) {
+                monthCount++;
+                monthRows.push(tx);
+                if (isGasto) {
+                    monthExpenses += amount;
+                    const key = tx.categoria || 'otros';
+                    byCategory[key] = (byCategory[key] || 0) + amount;
+                } else {
+                    monthIncome += amount;
+                }
             }
         });
 
-        // Calculate Daily Trend
-        let dailyTrend = 0;
-        if (yesterdayTotal > 0) {
-            dailyTrend = parseFloat(((dailyTotal - yesterdayTotal) / yesterdayTotal * 100).toFixed(1));
-        } else if (dailyTotal > 0) {
-            dailyTrend = 100;
-        }
+        const days = Array.from({ length: DAYS_IN_CHART }, (_, i) => {
+            const date = new Date(today);
+            date.setDate(date.getDate() - (DAYS_IN_CHART - 1 - i));
+            const total = transactions
+                .filter(tx => tx.tipo === 'gasto' && sameDay(new Date(tx.created_at), date))
+                .reduce((sum, tx) => sum + (Number(tx.monto) || 0), 0);
+            return {
+                key: date.toISOString(),
+                total,
+                isToday: i === DAYS_IN_CHART - 1,
+                shortLabel: date.toLocaleDateString('es-AR', { weekday: 'narrow' }).toUpperCase(),
+                longLabel: date.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+            };
+        });
 
-        // Prepare sparkline data for last 7 days
-        const chartData = [];
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
-            chartData.push(history[d.toDateString()] || 0);
-        }
-
-        const savings = Math.max(0, monthlyIncome - monthlyExpenses);
-        const savingsRate = monthlyIncome > 0 ? parseFloat(((savings / monthlyIncome) * 100).toFixed(1)) : 0;
+        // Top four categories, the rest grouped together
+        const sorted = Object.entries(byCategory)
+            .map(([name, total]) => ({ name, total }))
+            .sort((a, b) => b.total - a.total);
+        const categories = sorted.length > 5
+            ? [...sorted.slice(0, 4), { name: 'el resto', total: sorted.slice(4).reduce((s, c) => s + c.total, 0) }]
+            : sorted;
 
         return {
-            daily: dailyTotal,
-            monthly: monthlyExpenses,
-            transactionCount: count,
-            savings,
-            dailyTrend,
-            savingsTrend: savingsRate,
-            chartData
+            todayTotal,
+            dailyTrend: yesterdayTotal > 0
+                ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100)
+                : null,
+            monthExpenses,
+            monthIncome,
+            monthCount,
+            balance: monthIncome - monthExpenses,
+            savingsRate: monthIncome > 0
+                ? Math.round(((monthIncome - monthExpenses) / monthIncome) * 100)
+                : null,
+            days,
+            categories,
+            recent: monthRows.slice(0, 6)
         };
-    }, [messages]);
+    }, [transactions]);
 
     useEffect(() => {
         async function checkDatabase() {
             const { error } = await supabase
                 .from('transactions')
                 .select('id', { count: 'exact', head: true });
-            setDbStatus(error ? "Offline" : "Online");
+            setDbOnline(!error);
         }
         checkDatabase();
     }, []);
 
-    const userFirstName = userData?.display_name?.split(' ')[0] || 'Axel';
-
-    // Get only last 5 for the table
-    const recentMessages = messages.slice(0, 5);
+    const firstName = userData?.display_name?.split(' ')[0];
+    const now = new Date();
+    const monthName = now.toLocaleDateString('es-AR', { month: 'long' });
+    const todayLabel = capitalize(now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }));
 
     return (
-        <motion.div
-            initial="hidden"
-            animate="show"
-            variants={container}
-            className="flex flex-col gap-10 max-w-7xl mx-auto w-full px-4 md:px-0"
-        >
-            {/* Header Section */}
-            <motion.div variants={item} className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+        <div className="max-w-[1280px] mx-auto flex flex-col gap-6">
+            <header className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <h2 className="text-5xl font-extrabold tracking-tighter text-foreground">
-                        Panel Principal
-                    </h2>
-                    <p className="text-muted-foreground mt-3 text-lg font-medium">Bienvenido de nuevo, {userFirstName} 👋</p>
+                    <p className="text-[15px] text-ink-2">{todayLabel}</p>
+                    <h1 className="text-[34px] md:text-[40px] leading-tight font-bold tracking-[-0.025em]">
+                        {firstName ? `Hola, ${firstName}` : 'Hola'}
+                    </h1>
                 </div>
-
-                <div className="flex items-center gap-4">
-                    <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
-                        <Plus size={20} />
-                        <span>Nuevo Gasto</span>
+                <div className="flex items-center gap-2">
+                    {dbOnline === false && (
+                        <span className="pill-ghost h-9 text-[13px] text-gasto">Sin conexión con la base de datos</span>
+                    )}
+                    <button type="button" className="pill-button" onClick={openWallyBot}>
+                        <Plus size={18} strokeWidth={2.25} />
+                        Registrar movimiento
                     </button>
+                </div>
+            </header>
 
-                    <div className="flex items-center gap-2.5 px-4 py-2 bg-secondary border border-border rounded-2xl">
-                        <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${dbStatus === 'Offline' ? 'bg-red-500' : 'bg-green-500'
-                            }`}></div>
-                        <span className="text-xs font-bold text-foreground uppercase tracking-widest">{dbStatus}</span>
+            {loading && <p className="sr-only" role="status">Cargando tus movimientos…</p>}
+
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-4 md:gap-5" aria-busy={loading}>
+                <div className="flex flex-col gap-4 md:gap-5 min-w-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5">
+                        <StatTile
+                            label="Gastaste hoy"
+                            value={stats.todayTotal}
+                            loading={loading}
+                            footer={<Trend value={stats.dailyTrend} inverse suffix="vs. ayer" />}
+                        />
+                        <StatTile
+                            label={`Gastos de ${monthName}`}
+                            value={stats.monthExpenses}
+                            loading={loading}
+                            footer={<span className="text-ink-3">{stats.monthCount} movimientos</span>}
+                        />
+                        <StatTile
+                            label="Ahorro del mes"
+                            value={Math.max(stats.balance, 0)}
+                            loading={loading}
+                            footer={stats.savingsRate === null
+                                ? <span className="text-ink-3">Sin ingresos registrados</span>
+                                : <span className="text-ink-3">{stats.savingsRate}% de lo que ingresó</span>}
+                        />
+                    </div>
+
+                    <SpendingBars days={stats.days} loading={loading} />
+
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4 md:gap-5">
+                        <RecentActivity rows={stats.recent} loading={loading} />
+                        <CategoryRing categories={stats.categories} total={stats.monthExpenses} loading={loading} />
                     </div>
                 </div>
-            </motion.div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <StatCard
-                    title="Gasto Diario"
-                    value={messagesLoading ? '...' : formatCurrency(stats.daily)}
-                    trend={stats.dailyTrend}
-                    chartData={stats.chartData}
-                    inverseTrend={true} // Higher spend is bad
-                    icon={<Activity size={24} />}
-                />
-                <StatCard
-                    title="Ahorro Mensual"
-                    value={messagesLoading ? '...' : formatCurrency(stats.savings)}
-                    trend={stats.savingsTrend}
-                    trendLabel="De los ingresos totales"
-                    icon={<Wallet size={24} />}
-                />
-                <StatCard
-                    title="Transacciones"
-                    value={messagesLoading ? '...' : stats.transactionCount}
-                    trend={stats.transactionCount > 0 ? 100 : 0}
-                    icon={<ArrowRightLeft size={24} />}
-                    trendLabel="Total este mes"
-                />
-            </div>
-
-            {/* Main Content Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Recent Activity Section */}
-                <motion.div variants={item} className="lg:col-span-2 glass-card rounded-[2.5rem]">
-                    <div className="px-10 py-8 border-b border-border flex justify-between items-center bg-secondary/30">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 text-primary rounded-xl">
-                                <RefreshCcw size={20} />
+                <aside className="flex flex-col sm:flex-row xl:flex-col gap-4 md:gap-5">
+                    <div className="glass-tint rounded-[1.75rem] p-6 flex-1 xl:flex-none">
+                        <p className="text-sm text-white/75">Balance de {monthName}</p>
+                        {loading ? (
+                            <div className="mt-2">
+                                <Skeleton onTint className="h-10 w-3/4" />
+                                <div className="mt-7 space-y-4">
+                                    <Skeleton onTint className="h-3.5 w-full" />
+                                    <Skeleton onTint className="h-3.5 w-full" />
+                                    <Skeleton onTint className="h-2 w-full mt-5" />
+                                    <Skeleton onTint className="h-3 w-2/3" />
+                                </div>
                             </div>
-                            <h3 className="font-bold text-xl text-foreground">Actividad Reciente</h3>
+                        ) : (
+                            <>
+                            <p className="text-[40px] leading-tight font-bold tracking-[-0.025em] tabular-nums mt-1">
+                                <AnimatedNumber value={stats.balance} format={formatCurrency} />
+                            </p>
+                            <dl className="mt-6 space-y-3 text-sm">
+                                <div className="flex justify-between">
+                                    <dt className="text-white/75">Ingresos</dt>
+                                    <dd className="font-semibold tabular-nums">{formatCurrency(stats.monthIncome)}</dd>
+                                </div>
+                                <div className="flex justify-between">
+                                    <dt className="text-white/75">Gastos</dt>
+                                    <dd className="font-semibold tabular-nums">{formatCurrency(stats.monthExpenses)}</dd>
+                                </div>
+                            </dl>
+                            <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden" aria-hidden="true">
+                                <motion.div
+                                    className="h-full rounded-full bg-white"
+                                    initial={{ width: '0%' }}
+                                    animate={{ width: `${stats.monthIncome > 0 ? Math.min((stats.monthExpenses / stats.monthIncome) * 100, 100) : 0}%` }}
+                                    transition={{ duration: 0.9, ease: iosEase, delay: 0.2 }}
+                                />
+                            </div>
+                            <p className="text-xs text-white/70 mt-2">
+                                {stats.monthIncome > 0
+                                    ? `Gastaste el ${Math.round((stats.monthExpenses / stats.monthIncome) * 100)}% de tus ingresos`
+                                    : 'Registrá tus ingresos para ver cuánto te queda'}
+                            </p>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="glass-card p-6 flex-1 xl:flex-none flex flex-col gap-4">
+                        <span className="w-11 h-11 rounded-full bg-ink text-background flex items-center justify-center">
+                            <MessageCircle size={20} />
+                        </span>
+                        <div>
+                            <p className="text-[17px] font-semibold">Contale a Wally</p>
+                            <p className="text-sm text-ink-2 mt-1">
+                                Escribile o mandale un audio con lo que gastaste y lo anota por vos.
+                            </p>
                         </div>
-                        <button className="text-indigo-400 text-sm font-bold hover:text-indigo-300 transition-colors flex items-center gap-1 group">
-                            Ver Todo <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                        <button type="button" className="pill-ghost self-start" onClick={openWallyBot}>
+                            Abrir chat
                         </button>
                     </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="text-muted-foreground text-xs font-bold uppercase tracking-[0.2em] border-b border-border">
-                                    <th className="px-10 py-6">Descripción</th>
-                                    <th className="px-10 py-6">Monto</th>
-                                    <th className="px-10 py-6">Tipo</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border text-sm">
-                                {messagesLoading ? (
-                                    <tr>
-                                        <td colSpan="3" className="px-10 py-10 text-center text-zinc-500">Cargando datos...</td>
-                                    </tr>
-                                ) : messages.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="3" className="px-10 py-10 text-center text-zinc-500">No hay transacciones recientes</td>
-                                    </tr>
-                                ) : (
-                                    recentMessages.map((row, idx) => (
-                                        <tr key={row.id || idx} className="hover:bg-secondary/50 transition-colors group">
-                                            <td className="px-10 py-7 text-foreground/80 font-medium group-hover:text-foreground transition-colors flex items-center gap-3">
-                                                <span className={`block w-1.5 h-1.5 rounded-full ${row.tipo?.toLowerCase() === 'gasto' ? 'bg-red-500/40' : 'bg-green-500/40'}`}></span>
-                                                {row.descripcion || 'Sin descripción'}
-                                            </td>
-                                            <td className="px-10 py-7 font-bold text-foreground text-lg">
-                                                {formatCurrency(row.monto || 0)}
-                                            </td>
-                                            <td className="px-10 py-7">
-                                                <span className={`px-4 py-1.5 rounded-xl text-xs font-bold border ${row.tipo?.toLowerCase() === 'gasto'
-                                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                                    : 'bg-green-500/10 text-green-400 border-green-500/20'
-                                                    }`}>
-                                                    {row.tipo ? row.tipo.charAt(0).toUpperCase() + row.tipo.slice(1) : 'Procesado'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </motion.div>
-
-
-                {/* Side Section / Quick Tips or Insights */}
-                <motion.div variants={item} className="flex flex-col gap-6">
-                    <div className="glass-card rounded-[2.5rem] p-8 bg-gradient-to-br from-indigo-500/10 to-transparent">
-                        <h4 className="font-bold text-white text-lg mb-4">Wally Insight AI</h4>
-                        <p className="text-zinc-400 leading-relaxed text-sm mb-6">
-                            {messages.length > 5
-                                ? "Tus gastos han sido estables esta semana. ¡Sigue así!"
-                                : "Aún estamos analizando tus patrones de gasto. ¡Registra más actividades para obtener consejos personalizados!"}
-                        </p>
-                        <button className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-bold transition-colors text-sm">
-                            Ver Análisis Completo
-                        </button>
-                    </div>
-
-                    <div className="glass-card rounded-[2.5rem] p-8">
-                        <h4 className="font-bold text-white text-lg mb-4">Exportar Resumen</h4>
-                        <p className="text-zinc-500 text-xs mb-6">
-                            Descarga tu resumen mensual para contabilidad o control personal.
-                        </p>
-                        <div className="grid grid-cols-2 gap-4">
-                            <button className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-300 hover:border-zinc-700 transition-all text-center">
-                                PDF
-                            </button>
-                            <button className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-300 hover:border-zinc-700 transition-all text-center">
-                                Excel/CSV
-                            </button>
-                        </div>
-                    </div>
-                </motion.div>
+                </aside>
             </div>
-        </motion.div>
+        </div>
     );
 };
 

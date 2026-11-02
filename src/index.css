@@ -1,20 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-    --font-sans: "Outfit", sans-serif;
+    /* SF Pro on Apple devices, Inter everywhere else */
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
 
-    /* Primary Brand: Purple */
     --color-primary: #8b5cf6;
-    /* Violet 500 */
     --color-primary-dark: #7c3aed;
-    /* Violet 600 */
     --color-accent: #a78bfa;
-    /* Violet 400 */
 
-    /* Neutral Zinc Scale for Minimalism */
     --color-zinc-50: #fafafa;
     --color-zinc-100: #f4f4f5;
     --color-zinc-200: #e4e4e7;
@@ -27,7 +23,6 @@
     --color-zinc-900: #18181b;
     --color-zinc-950: #09090b;
 
-    /* Mapping variables */
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -35,57 +30,235 @@
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+    --color-muted-foreground: var(--ink-2);
+    --color-secondary: var(--tile);
 
-    /* Premium Radius */
+    /* Glass system */
+    --color-ink: var(--ink);
+    --color-ink-2: var(--ink-2);
+    --color-ink-3: var(--ink-3);
+    --color-hairline: var(--hairline);
+    --color-tile: var(--tile);
+    --color-tile-strong: var(--tile-strong);
+    --color-gasto: var(--gasto);
+    --color-ingreso: var(--ingreso);
+
     --radius-4xl: 2rem;
     --radius-5xl: 3rem;
 }
 
-@layer base {
-    :root {
-        color-scheme: light dark;
-    }
-
-    body {
-        @apply font-sans antialiased bg-background text-foreground transition-colors duration-500;
-    }
-}
-
-@layer utilities {
-    .glass-card {
-        @apply bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all duration-200 overflow-hidden;
-    }
-
-    .glass-card:hover {
-        @apply border-primary/40 shadow-lg shadow-primary/5;
-    }
-
-    .text-gradient-premium {
-        @apply bg-clip-text text-transparent bg-gradient-to-br from-indigo-500 to-violet-600 dark:from-white dark:to-zinc-400;
-    }
-}
-
 :root {
     --radius: 1rem;
-    --background: #ffffff;
-    --foreground: #09090b;
-    --card: #ffffff;
-    --card-foreground: #09090b;
+    --background: #d9ebec;
+    --foreground: #121d1c;
+    --card: rgba(255, 255, 255, 0.55);
+    --card-foreground: #121d1c;
     --primary: #8b5cf6;
     --primary-foreground: #ffffff;
-    --border: #e4e4e7;
-    --input: #f4f4f5;
-    --ring: #8b5cf6;
+    --border: rgba(18, 29, 28, 0.1);
+    --input: rgba(255, 255, 255, 0.6);
+    --ring: rgba(18, 29, 28, 0.35);
+
+    --ink: #121d1c;
+    --ink-2: rgba(18, 29, 28, 0.62);
+    --ink-3: rgba(18, 29, 28, 0.4);
+    --hairline: rgba(18, 29, 28, 0.08);
+
+    /* Panel = the big window, tile = cards inside it */
+    --panel: rgba(246, 253, 253, 0.42);
+    --panel-edge: rgba(255, 255, 255, 0.7);
+    --tile: rgba(255, 255, 255, 0.5);
+    --tile-strong: rgba(255, 255, 255, 0.78);
+    --tile-edge: rgba(255, 255, 255, 0.85);
+    --shadow: 0 30px 60px -30px rgba(20, 62, 70, 0.35);
+
+    --gasto: #d63a2f;
+    --ingreso: #1f8a4c;
+
+    --glow-1: #7fd3dc;
+    --glow-2: #b7c3f0;
+    --glow-3: #c9b8ee;
+
+    --tint-from: rgba(150, 140, 225, 0.6);
+    --tint-to: rgba(86, 76, 170, 0.45);
 }
 
 .dark {
-    --background: #09090b;
-    --foreground: #fafafa;
-    --card: #09090b;
-    --card-foreground: #fafafa;
-    --primary: #8b5cf6;
-    --primary-foreground: #ffffff;
-    --border: #27272a;
-    --input: #18181b;
-    --ring: #8b5cf6;
+    --background: #0d1717;
+    --foreground: #f2fbfb;
+    --card: rgba(255, 255, 255, 0.08);
+    --card-foreground: #f2fbfb;
+    --border: rgba(255, 255, 255, 0.12);
+    --input: rgba(255, 255, 255, 0.08);
+    --ring: rgba(255, 255, 255, 0.4);
+
+    --ink: #f2fbfb;
+    --ink-2: rgba(242, 251, 251, 0.64);
+    --ink-3: rgba(242, 251, 251, 0.4);
+    --hairline: rgba(255, 255, 255, 0.09);
+
+    --panel: rgba(16, 36, 40, 0.45);
+    --panel-edge: rgba(255, 255, 255, 0.14);
+    --tile: rgba(255, 255, 255, 0.07);
+    --tile-strong: rgba(255, 255, 255, 0.16);
+    --tile-edge: rgba(255, 255, 255, 0.12);
+    --shadow: 0 40px 80px -30px rgba(0, 8, 12, 0.65);
+
+    --gasto: #ff7a6e;
+    --ingreso: #5fd99a;
+
+    --glow-1: #3db4c4;
+    --glow-2: #4d6a96;
+    --glow-3: #3f3a8a;
+
+    --tint-from: rgba(130, 120, 220, 0.5);
+    --tint-to: rgba(70, 60, 150, 0.35);
+}
+
+@layer base {
+    :root {
+        color-scheme: light;
+    }
+
+    .dark {
+        color-scheme: dark;
+    }
+
+    body {
+        @apply font-sans antialiased text-ink;
+        background-color: var(--background);
+        font-feature-settings: "cv11", "ss01";
+        letter-spacing: -0.011em;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+    }
+}
+
+@layer components {
+    /* Ambient light behind every glass surface, like an aurora seen through frosted glass */
+    .ambient {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background:
+            radial-gradient(60% 50% at 12% 18%, var(--glow-1) 0%, transparent 70%),
+            radial-gradient(45% 45% at 88% 12%, var(--glow-2) 0%, transparent 70%),
+            radial-gradient(55% 55% at 70% 95%, var(--glow-3) 0%, transparent 70%),
+            var(--background);
+        filter: saturate(115%);
+    }
+
+    .ambient::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--background) 45%, transparent) 100%);
+    }
+
+    .glass-panel {
+        background: var(--panel);
+        border: 1px solid var(--panel-edge);
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(40px) saturate(180%);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+    }
+
+    .glass-card {
+        background: var(--tile);
+        border: 1px solid var(--tile-edge);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(24px) saturate(160%);
+        -webkit-backdrop-filter: blur(24px) saturate(160%);
+        border-radius: 1.5rem;
+        overflow: hidden;
+    }
+
+    /* Tinted widget, like the colored cards in iOS widgets */
+    .glass-tint {
+        background: linear-gradient(160deg, var(--tint-from), var(--tint-to));
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        backdrop-filter: blur(30px) saturate(170%);
+        -webkit-backdrop-filter: blur(30px) saturate(170%);
+        color: #fbf7f2;
+    }
+
+    .pill-button {
+        @apply inline-flex items-center justify-center gap-2 rounded-full px-4 h-10 text-sm font-semibold transition-[background-color,transform] duration-150 active:scale-[0.97];
+        background: var(--ink);
+        color: var(--background);
+    }
+
+    .pill-button:hover {
+        background: color-mix(in srgb, var(--ink) 88%, transparent);
+    }
+
+    .pill-ghost {
+        @apply inline-flex items-center justify-center gap-2 rounded-full px-4 h-10 text-sm font-medium transition-colors duration-150;
+        background: var(--tile);
+        border: 1px solid var(--tile-edge);
+        color: var(--ink);
+    }
+
+    .pill-ghost:hover {
+        background: var(--tile-strong);
+    }
+
+    .glass-input {
+        @apply w-full rounded-2xl px-4 h-12 text-[15px] outline-none transition-colors;
+        background: var(--input);
+        border: 1px solid var(--tile-edge);
+        color: var(--ink);
+    }
+
+    .glass-input::placeholder {
+        color: var(--ink-3);
+    }
+
+    .glass-input:focus {
+        border-color: var(--ring);
+    }
+}
+
+@layer components {
+    /* Loading placeholder: a frosted block with a soft light sweeping across */
+    .skeleton {
+        position: relative;
+        overflow: hidden;
+        background: var(--tile-strong);
+        border-radius: 9999px;
+    }
+
+    .skeleton::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+        animation: skeleton-sweep 1.6s ease-in-out infinite;
+    }
+
+    /* Lighter variant for tinted widgets */
+    .skeleton-on-tint {
+        background: rgba(255, 255, 255, 0.22);
+    }
+}
+
+@keyframes skeleton-sweep {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
 }

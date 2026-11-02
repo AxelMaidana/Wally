@@ -1,13 +1,79 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Wally</title>
+    <script>
+      // Runs before the first paint so a reload never flashes the wrong theme or an empty page
+      (function () {
+        var root = document.documentElement;
+        try {
+          var theme = localStorage.getItem('theme') ||
+            (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          if (theme === 'dark') root.classList.add('dark');
+          var signedIn = Object.keys(localStorage).some(function (key) {
+            return /^sb-.+-auth-token$/.test(key);
+          });
+          root.setAttribute('data-boot', signedIn ? 'app' : 'auth');
+          if (localStorage.getItem('sidebar-collapsed') === 'true') root.setAttribute('data-sidebar', 'collapsed');
+        } catch (e) {
+          root.setAttribute('data-boot', 'auth');
+        }
+      })();
+    </script>
+    <style>
+      /* Boot screen painted before JS and CSS load. Colors mirror the tokens in src/index.css */
+      html { background: #d9ebec; }
+      html.dark { background: #0d1717; }
+      .boot {
+        position: fixed; inset: 0; display: flex; gap: 16px; padding: 16px;
+        background:
+          radial-gradient(60% 50% at 12% 18%, #7fd3dc 0%, transparent 70%),
+          radial-gradient(45% 45% at 88% 12%, #b7c3f0 0%, transparent 70%),
+          radial-gradient(55% 55% at 70% 95%, #c9b8ee 0%, transparent 70%),
+          #d9ebec;
+      }
+      .dark .boot {
+        background:
+          radial-gradient(60% 50% at 12% 18%, #3db4c4 0%, transparent 70%),
+          radial-gradient(45% 45% at 88% 12%, #4d6a96 0%, transparent 70%),
+          radial-gradient(55% 55% at 70% 95%, #3f3a8a 0%, transparent 70%),
+          #0d1717;
+      }
+      .boot-panel {
+        border-radius: 32px;
+        background: rgba(246, 253, 253, 0.42);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+      }
+      .dark .boot-panel {
+        background: rgba(16, 36, 40, 0.45);
+        border-color: rgba(255, 255, 255, 0.14);
+      }
+      .boot-side { width: 248px; flex-shrink: 0; }
+      [data-sidebar="collapsed"] .boot-side { width: 76px; }
+      .boot-main { flex: 1; }
+      .boot-card { display: none; width: 100%; max-width: 400px; height: 560px; margin: auto; }
+      [data-boot="auth"] .boot-side,
+      [data-boot="auth"] .boot-main { display: none; }
+      [data-boot="auth"] .boot-card { display: block; }
+      @media (max-width: 767px) {
+        .boot { padding: 0; }
+        .boot-side { display: none; }
+        .boot-main { border-radius: 0; border-width: 0; }
+        [data-boot="auth"] .boot { padding: 16px; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot" aria-hidden="true">
+        <div class="boot-panel boot-side"></div>
+        <div class="boot-panel boot-main"></div>
+        <div class="boot-panel boot-card"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

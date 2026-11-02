@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { MotionConfig } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -10,6 +11,7 @@ import DataDemo from './pages/DataDemo';
 // import SettingsPage from './pages/SettingsPage';
 import DebugApiPage from './pages/DebugApiPage';
 import { ThemeToggle } from './components/ThemeToggle';
+import { BootShell } from './components/BootShell';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -28,24 +30,31 @@ const AppLayout = ({ children }) => {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950 transition-colors duration-500">
+    <div className="relative min-h-dvh text-ink">
+      <div className="ambient" aria-hidden="true" />
+      <ThemeToggle className="fixed top-5 right-5 z-[101]" />
       {isLegalPage && (
         <Link
           to="/"
-          className="fixed top-6 left-20 z-[101] px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-bold hover:text-primary transition-all shadow-sm"
+          className="pill-ghost fixed top-5 left-5 z-[101] backdrop-blur-xl"
         >
-          ← Volver
+          Volver
         </Link>
       )}
-      {children}
+      <div className="relative z-10">
+        {children}
+      </div>
     </div>
   );
 };
 
 const AppContent = () => {
+  const { loading } = useAuth();
+
+  if (loading) return <BootShell />;
+
   return (
     <Router>
-      <ThemeToggle />
       <AppLayout>
         <Routes>
           {/* Public Legal Routes */}
@@ -96,9 +105,11 @@ const AppContent = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <MotionConfig reducedMotion="user">
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </MotionConfig>
   );
 }
 

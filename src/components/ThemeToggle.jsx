@@ -1,7 +1,29 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { IconSun, IconMoon } from "@tabler/icons-react";
+import { cn } from "../lib/utils";
 
-export function ThemeToggle() {
+const knobSpring = { type: "spring", stiffness: 600, damping: 32 };
+
+// iOS-style switch, used in the sidebar row
+const Switch = ({ on }) => (
+    <span
+        className={cn(
+            "relative inline-flex w-[38px] h-[23px] shrink-0 rounded-full p-[2px] transition-colors duration-200",
+            on ? "bg-[#34c759]" : "bg-tile-strong"
+        )}
+        aria-hidden="true"
+    >
+        <motion.span
+            initial={false}
+            animate={{ x: on ? 15 : 0 }}
+            transition={knobSpring}
+            className="w-[19px] h-[19px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.25)]"
+        />
+    </span>
+);
+
+export function ThemeToggle({ className, variant = "floating", collapsed = false }) {
     const [theme, setTheme] = useState(() => {
         if (typeof window !== "undefined") {
             return localStorage.getItem("theme") ||
@@ -20,21 +42,56 @@ export function ThemeToggle() {
         localStorage.setItem("theme", theme);
     }, [theme]);
 
-    const toggleTheme = () => {
-        setTheme(prev => prev === "light" ? "dark" : "light");
-    };
+    const isDark = theme === "dark";
+    const toggleTheme = () => setTheme(isDark ? "light" : "dark");
+    const Icon = isDark ? IconMoon : IconSun;
+
+    if (variant === "row") {
+        return (
+            <button
+                type="button"
+                role="switch"
+                aria-checked={isDark}
+                onClick={toggleTheme}
+                title={collapsed ? "Modo oscuro" : undefined}
+                className={cn(
+                    "relative flex items-center gap-3 h-10 px-[11px] rounded-full text-sm font-medium text-ink-2 hover:text-ink transition-colors",
+                    className
+                )}
+            >
+                <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                        key={theme}
+                        initial={{ rotate: -90, scale: 0.6, opacity: 0 }}
+                        animate={{ rotate: 0, scale: 1, opacity: 1 }}
+                        exit={{ rotate: 90, scale: 0.6, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex shrink-0"
+                    >
+                        <Icon className="w-[18px] h-[18px]" stroke={1.75} />
+                    </motion.span>
+                </AnimatePresence>
+                {!collapsed && (
+                    <>
+                        <span className="flex-1 text-left whitespace-nowrap">Modo oscuro</span>
+                        <Switch on={isDark} />
+                    </>
+                )}
+            </button>
+        );
+    }
 
     return (
         <button
+            type="button"
             onClick={toggleTheme}
-            className="fixed top-6 right-6 z-[101] p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all duration-300 group"
-            aria-label="Toggle Theme"
-        >
-            {theme === "light" ? (
-                <IconMoon className="w-5 h-5 text-zinc-600 group-hover:text-primary transition-colors" />
-            ) : (
-                <IconSun className="w-5 h-5 text-zinc-400 group-hover:text-primary transition-colors" />
+            className={cn(
+                "glass-card w-10 h-10 flex items-center justify-center rounded-full text-ink-2 hover:text-ink transition-colors",
+                className
             )}
+            aria-label={isDark ? "Modo claro" : "Modo oscuro"}
+        >
+            <Icon className="w-[18px] h-[18px]" stroke={1.75} />
         </button>
     );
 }

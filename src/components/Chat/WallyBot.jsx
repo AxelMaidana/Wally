@@ -1,31 +1,55 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-    MessageSquare,
+    MessageCircle,
     X,
-    Send,
+    ArrowUp,
     Mic,
-    MicOff,
-    Bot,
-    User,
-    Loader2,
-    Sparkles,
-    Trash2
+    Square,
+    RotateCcw
 } from 'lucide-react';
 import { processChatMessage } from '../../services/aiService';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { OPEN_WALLY_EVENT } from './wallyEvents';
 import { cn } from '../../lib/utils';
+import { sidebarSpring, softSpring } from '../../lib/motion';
+
+// iMessage-style "typing" bubble
+const TypingDots = () => (
+    <div className="bg-tile-strong rounded-[20px] rounded-bl-md px-4 py-3.5 flex items-center gap-1" role="status" aria-label="Wally está escribiendo">
+        {[0, 1, 2].map((i) => (
+            <motion.span
+                key={i}
+                className="w-1.5 h-1.5 rounded-full bg-ink-2"
+                animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+            />
+        ))}
+    </div>
+);
 
 export const WallyBot = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
-        { id: 1, text: "¡Hola! Soy WallyBot. Puedo ayudarte a registrar tus gastos e ingresos. ¿En qué puedo ayudarte hoy?", isBot: true }
+        { id: 1, text: "Hola, soy Wally. Contame qué gastaste o cobraste y lo anoto por vos.", isBot: true }
     ]);
     const [chatHistory, setChatHistory] = useState([]); // Real AI history
     const [inputValue, setInputValue] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef(null);
+    const inputRef = useRef(null);
     const { isRecording, startRecording, stopRecording, convertBlobToBase64, audioBlob, setAudioBlob } = useVoiceRecorder();
+
+    // Other screens can open the chat (e.g. "Registrar movimiento" on the dashboard)
+    useEffect(() => {
+        const open = () => setIsOpen(true);
+        window.addEventListener(OPEN_WALLY_EVENT, open);
+        return () => window.removeEventListener(OPEN_WALLY_EVENT, open);
+    }, []);
+
+    useEffect(() => {
+        if (isOpen) inputRef.current?.focus();
+    }, [isOpen]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -62,7 +86,7 @@ export const WallyBot = () => {
             console.error("Chat Error:", error);
             setMessages(prev => [...prev, {
                 id: Date.now(),
-                text: "❌ Hubo un error al procesar el mensaje. Por favor intenta de nuevo.",
+                text: "No se pudo enviar el mensaje. Revisá tu conexión y probá de nuevo.",
                 isBot: true,
                 status: "error"
             }]);
@@ -78,7 +102,7 @@ export const WallyBot = () => {
             setIsLoading(true);
             const base64 = await convertBlobToBase64(audioBlob);
 
-            const userMsg = { id: Date.now(), text: "🎤 Mensaje de voz enviado...", isBot: false };
+            const userMsg = { id: Date.now(), text: "Mensaje de voz", isBot: false, isAudio: true };
             setMessages(prev => [...prev, userMsg]);
 
             const response = await processChatMessage(
@@ -94,7 +118,7 @@ export const WallyBot = () => {
             console.error("Audio Chat Error:", error);
             setMessages(prev => [...prev, {
                 id: Date.now(),
-                text: "❌ Error al procesar el audio. Asegúrate de que el micrófono funciona.",
+                text: "No se pudo procesar el audio. Revisá que el micrófono tenga permiso y probá de nuevo.",
                 isBot: true,
                 status: "error"
             }]);
@@ -105,7 +129,7 @@ export const WallyBot = () => {
     };
 
     const clearChat = () => {
-        setMessages([{ id: 1, text: "Chat reiniciado. ¿En qué más puedo ayudarte?", isBot: true }]);
+        setMessages([{ id: 1, text: "Empezamos de nuevo. ¿Qué querés registrar?", isBot: true }]);
         setChatHistory([]);
     };
 
@@ -114,186 +138,199 @@ export const WallyBot = () => {
     const showConfirmationButtons = lastBotMessage?.isBot && lastBotMessage.text.includes("¿Deseas subir esta información?");
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <div className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-50 flex flex-col items-end">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        initial={{ opacity: 0, y: 16, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        className="w-[350px] md:w-[400px] h-[550px] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden mb-4"
+                        exit={{ opacity: 0, y: 16, scale: 0.96 }}
+                        transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+                        style={{ transformOrigin: 'bottom right' }}
+                        className="glass-panel w-[calc(100vw-2rem)] sm:w-[380px] h-[min(560px,calc(100dvh-7rem))] rounded-[2rem] flex flex-col overflow-hidden mb-3"
+                        role="dialog"
+                        aria-label="Chat con Wally"
                     >
-                        {/* Header */}
-                        <div className="p-4 border-b border-zinc-100 dark:border-zinc-900 bg-primary/5 flex justify-between items-center group">
+                        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-hairline">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
-                                    <Bot size={22} />
-                                </div>
+                                <span className="w-9 h-9 rounded-full bg-ink text-background flex items-center justify-center font-semibold">W</span>
                                 <div>
-                                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-                                        WallyBot
-                                        <Sparkles size={14} className="text-primary animate-pulse" />
-                                    </h3>
-                                    <p className="text-[10px] text-green-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                        En línea
-                                    </p>
+                                    <p className="text-[15px] font-semibold leading-tight">Wally</p>
+                                    <p className="text-xs text-ink-2">{isLoading ? 'Escribiendo…' : 'Anota tus gastos e ingresos'}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">
                                 <button
+                                    type="button"
                                     onClick={clearChat}
-                                    className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all opacity-0 group-hover:opacity-100"
-                                    title="Limpiar chat"
+                                    className="p-2 rounded-full text-ink-2 hover:text-ink hover:bg-tile transition-colors"
+                                    aria-label="Empezar de nuevo"
+                                    title="Empezar de nuevo"
                                 >
-                                    <Trash2 size={18} />
+                                    <RotateCcw size={17} />
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setIsOpen(false)}
-                                    className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-full transition-all"
+                                    className="p-2 rounded-full text-ink-2 hover:text-ink hover:bg-tile transition-colors"
+                                    aria-label="Cerrar chat"
                                 >
-                                    <X size={20} />
+                                    <X size={19} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Messages Area */}
                         <div
                             ref={scrollRef}
-                            className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth bg-zinc-50/30 dark:bg-zinc-900/10"
+                            className="flex-1 overflow-y-auto px-4 py-4 space-y-2 scroll-smooth"
+                            aria-live="polite"
                         >
                             {messages.map((msg) => (
                                 <motion.div
                                     key={msg.id}
-                                    initial={{ opacity: 0, x: msg.isBot ? -10 : 10, y: 5 }}
-                                    animate={{ opacity: 1, x: 0, y: 0 }}
-                                    className={cn(
-                                        "flex w-full items-end gap-2",
-                                        msg.isBot ? "justify-start" : "justify-end"
-                                    )}
+                                    // Bubbles grow out of their own corner, like iMessage
+                                    initial={{ opacity: 0, y: 10, scale: 0.92 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    transition={softSpring}
+                                    style={{ transformOrigin: msg.isBot ? "bottom left" : "bottom right" }}
+                                    className={cn("flex w-full", msg.isBot ? "justify-start" : "justify-end")}
                                 >
-                                    {msg.isBot && (
-                                        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 shrink-0">
-                                            <Bot size={16} />
-                                        </div>
-                                    )}
                                     <div className={cn(
-                                        "max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm whitespace-pre-wrap",
+                                        "max-w-[82%] px-3.5 py-2 text-[15px] leading-snug whitespace-pre-wrap",
                                         msg.isBot
-                                            ? "bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200"
-                                            : "bg-primary text-white font-medium"
+                                            ? "bg-tile-strong text-ink rounded-[20px] rounded-bl-md"
+                                            : "bg-[#0a84ff] text-white rounded-[20px] rounded-br-md",
+                                        msg.status === "error" && "text-gasto"
                                     )}>
+                                        {msg.isAudio && <Mic size={14} className="inline mr-1.5 -mt-0.5" />}
                                         {msg.text}
                                     </div>
-                                    {!msg.isBot && (
-                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                            <User size={16} />
-                                        </div>
-                                    )}
                                 </motion.div>
                             ))}
 
-                            {/* Quick Confirmation Buttons */}
                             {showConfirmationButtons && !isLoading && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="flex flex-wrap gap-2 ml-10 mt-2"
-                                >
-                                    <button
-                                        onClick={() => handleSendText("si")}
-                                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-green-500/20 transition-all flex items-center gap-1.5"
-                                    >
-                                        <Bot size={14} /> Si, subir
-                                    </button>
-                                    <button
-                                        onClick={() => handleSendText("no")}
-                                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-red-500/20 transition-all"
-                                    >
-                                        No, cancelar
-                                    </button>
-                                    <button
-                                        onClick={() => handleSendText("editar")}
-                                        className="px-4 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-bold rounded-xl transition-all"
-                                    >
-                                        Editar datos
-                                    </button>
-                                </motion.div>
-                            )}
-
-                            {isLoading && (
-                                <div className="flex justify-start items-center gap-2">
-                                    <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-400">
-                                        <Bot size={16} />
-                                    </div>
-                                    <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl px-4 py-3 shadow-sm">
-                                        <Loader2 size={16} className="animate-spin text-primary" />
-                                    </div>
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                    {[
+                                        { label: "Sí, guardar", reply: "si", className: "pill-button" },
+                                        { label: "Editar", reply: "editar", className: "pill-ghost" },
+                                        { label: "Cancelar", reply: "no", className: "pill-ghost" }
+                                    ].map((action, i) => (
+                                        <motion.button
+                                            key={action.reply}
+                                            type="button"
+                                            initial={{ opacity: 0, scale: 0.85 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            transition={{ ...softSpring, delay: 0.15 + i * 0.05 }}
+                                            onClick={() => handleSendText(action.reply)}
+                                            className={cn(action.className, "h-9 text-[13px]")}
+                                        >
+                                            {action.label}
+                                        </motion.button>
+                                    ))}
                                 </div>
                             )}
+
+                            <AnimatePresence>
+                                {isLoading && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                        transition={softSpring}
+                                        style={{ transformOrigin: "bottom left" }}
+                                        className="flex justify-start"
+                                    >
+                                        <TypingDots />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
-                        {/* Input Area */}
-                        <div className="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-white dark:bg-zinc-950">
-                            <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-1.5 pl-4 transition-all focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary">
+                        <div className="p-3 border-t border-hairline">
+                            <div className="flex items-center gap-1.5 rounded-full bg-tile border border-hairline pl-4 pr-1.5 h-12 focus-within:border-ring transition-colors">
                                 <input
+                                    ref={inputRef}
                                     type="text"
-                                    placeholder="Dime un gasto o ingreso..."
-                                    className="flex-1 bg-transparent border-none outline-none text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500"
+                                    placeholder="Gasté 4500 en el súper…"
+                                    aria-label="Mensaje para Wally"
+                                    className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-ink placeholder:text-ink-3"
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
                                 />
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        onClick={isRecording ? stopRecording : startRecording}
-                                        className={cn(
-                                            "p-2.5 rounded-xl transition-all",
-                                            isRecording
-                                                ? "bg-red-500 text-white animate-pulse"
-                                                : "text-zinc-400 hover:text-primary hover:bg-primary/10"
-                                        )}
-                                        title={isRecording ? "Detener grabación" : "Grabar audio"}
-                                    >
-                                        {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSendText()}
-                                        disabled={!inputValue.trim() || isLoading}
-                                        className="p-2.5 bg-primary text-white rounded-xl hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
-                                    >
-                                        <Send size={20} />
-                                    </button>
-                                </div>
+                                {/* Mic turns into the send arrow as soon as there's text, like iMessage */}
+                                <AnimatePresence mode="popLayout" initial={false}>
+                                    {inputValue.trim() ? (
+                                        <motion.button
+                                            key="send"
+                                            type="button"
+                                            initial={{ scale: 0.4, opacity: 0 }}
+                                            animate={{ scale: 1, opacity: 1 }}
+                                            exit={{ scale: 0.4, opacity: 0 }}
+                                            transition={sidebarSpring}
+                                            whileTap={{ scale: 0.88 }}
+                                            onClick={() => handleSendText()}
+                                            disabled={isLoading}
+                                            className="w-9 h-9 rounded-full bg-[#0a84ff] text-white flex items-center justify-center disabled:opacity-50"
+                                            aria-label="Enviar"
+                                        >
+                                            <ArrowUp size={18} strokeWidth={2.5} />
+                                        </motion.button>
+                                    ) : (
+                                        <motion.button
+                                            key="mic"
+                                            type="button"
+                                            initial={{ scale: 0.4, opacity: 0 }}
+                                            animate={{ scale: 1, opacity: 1 }}
+                                            exit={{ scale: 0.4, opacity: 0 }}
+                                            transition={sidebarSpring}
+                                            whileTap={{ scale: 0.88 }}
+                                            onClick={isRecording ? stopRecording : startRecording}
+                                            className={cn(
+                                                "relative w-9 h-9 rounded-full flex items-center justify-center transition-colors",
+                                                isRecording ? "bg-gasto text-white" : "text-ink-2 hover:text-ink hover:bg-tile"
+                                            )}
+                                            aria-label={isRecording ? "Detener grabación" : "Grabar audio"}
+                                        >
+                                            {isRecording && (
+                                                <motion.span
+                                                    className="absolute inset-0 rounded-full bg-gasto"
+                                                    animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                                                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeOut" }}
+                                                    aria-hidden="true"
+                                                />
+                                            )}
+                                            <span className="relative">
+                                                {isRecording ? <Square size={14} fill="currentColor" /> : <Mic size={18} />}
+                                            </span>
+                                        </motion.button>
+                                    )}
+                                </AnimatePresence>
                             </div>
-                            <p className="text-[9px] text-center text-zinc-400 mt-2 font-medium uppercase tracking-widest italic">
-                                Desarrollado con Gemini 2.5 Flash
-                            </p>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Toggle Button */}
             <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                type="button"
+                whileTap={{ scale: 0.94 }}
                 onClick={() => setIsOpen(!isOpen)}
-                className={cn(
-                    "w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-2xl transition-all duration-300 relative",
-                    isOpen
-                        ? "bg-zinc-900 dark:bg-zinc-800"
-                        : "bg-primary hover:bg-primary-dark shadow-primary/30"
-                )}
+                className="glass-panel w-14 h-14 rounded-full flex items-center justify-center text-ink"
+                aria-label={isOpen ? "Cerrar chat" : "Abrir chat con Wally"}
             >
-                {isOpen ? <X size={28} /> : <MessageSquare size={28} />}
-
-                {!isOpen && (
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-                    </span>
-                )}
+                <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                        key={isOpen ? "close" : "open"}
+                        initial={{ rotate: -90, scale: 0.6, opacity: 0 }}
+                        animate={{ rotate: 0, scale: 1, opacity: 1 }}
+                        exit={{ rotate: 90, scale: 0.6, opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="flex"
+                    >
+                        {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
+                    </motion.span>
+                </AnimatePresence>
             </motion.button>
         </div>
     );
