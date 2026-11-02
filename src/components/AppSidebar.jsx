@@ -6,7 +6,7 @@ import { sidebarSpring } from "../lib/motion";
 import {
     IconLayoutDashboard,
     IconHistory,
-    IconSettings,
+    IconUserCircle,
     IconLogout,
     IconCode,
 } from "@tabler/icons-react";
@@ -41,8 +41,8 @@ const SidebarContent = ({ collapsed, onNavigate }) => {
         { label: "Resumen", href: "/", icon: IconLayoutDashboard },
         { label: "Movimientos", href: "/history", icon: IconHistory },
     ];
+    links.push({ label: "Perfil", href: "/profile", icon: IconUserCircle });
     if (isAdmin) links.push({ label: "Desarrollo", href: "/dev", icon: IconCode });
-    links.push({ label: "Ajustes", href: "/settings", icon: IconSettings });
 
     const displayName = userData?.display_name || user?.user_metadata?.full_name || "Usuario";
     const avatar = userData?.photo_url || `https://ui-avatars.com/api/?background=random&name=${encodeURIComponent(displayName)}`;
@@ -78,7 +78,7 @@ const SidebarContent = ({ collapsed, onNavigate }) => {
                                     <motion.span
                                         layoutId="nav-active"
                                         transition={sidebarSpring}
-                                        className="absolute inset-0 rounded-full bg-tile-strong border border-[var(--tile-edge)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_20px_-8px_rgba(0,0,0,0.35)]"
+                                        className="glass-bubble absolute inset-0 rounded-full"
                                     />
                                 )}
                                 <AnimatePresence>

@@ -12,40 +12,11 @@ import {
     TrendingUp,
     TrendingDown,
     Plus,
-    MessageCircle,
-    Coffee,
-    ShoppingCart,
-    Car,
-    Home,
-    HeartPulse,
-    Ticket,
-    Zap,
-    Briefcase,
-    Shirt,
-    Circle
+    MessageCircle
 } from 'lucide-react';
+import { CategoryIcon } from '../components/CategoryIcon';
 
 const DAYS_IN_CHART = 14;
-
-const categoryIcons = {
-    comida: Coffee,
-    cafe: Coffee,
-    café: Coffee,
-    restaurante: Coffee,
-    supermercado: ShoppingCart,
-    compras: ShoppingCart,
-    transporte: Car,
-    nafta: Car,
-    alquiler: Home,
-    hogar: Home,
-    salud: HeartPulse,
-    ocio: Ticket,
-    entretenimiento: Ticket,
-    servicios: Zap,
-    sueldo: Briefcase,
-    trabajo: Briefcase,
-    ropa: Shirt,
-};
 
 // Ring colors for the category breakdown, from most to least spent
 const ringColors = ['#f5b26b', '#8fa6c8', '#e8a0a0', '#b8c99a', 'rgba(255,255,255,0.35)'];
@@ -56,11 +27,6 @@ const sameDay = (a, b) =>
 const formatPercent = (value) => `${Math.round(value)}%`;
 
 const capitalize = (text) => text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
-
-const CategoryIcon = ({ categoria, className }) => {
-    const Icon = categoryIcons[categoria?.toLowerCase()] || Circle;
-    return <Icon className={className} strokeWidth={1.75} />;
-};
 
 const Trend = ({ value, inverse = false, suffix }) => {
     if (value === null) return <span className="text-ink-3">{suffix}</span>;

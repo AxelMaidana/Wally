@@ -8,7 +8,8 @@ import DevPage from './pages/DevPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import DataDemo from './pages/DataDemo';
-// import SettingsPage from './pages/SettingsPage';
+import HistoryPage from './pages/HistoryPage';
+import ProfilePage from './pages/ProfilePage';
 import DebugApiPage from './pages/DebugApiPage';
 import { ThemeToggle } from './components/ThemeToggle';
 import { BootShell } from './components/BootShell';
@@ -83,11 +84,17 @@ const AppContent = () => {
             </ProtectedRoute>
           } />
 
-          {/* <Route path="/settings" element={
+          <Route path="/history" element={
             <ProtectedRoute>
-              <SettingsPage />
+              <HistoryPage />
             </ProtectedRoute>
-          } /> */}
+          } />
+
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } />
 
           <Route path="/api" element={
             <ProtectedRoute>

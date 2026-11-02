@@ -56,7 +56,7 @@
     --primary: #8b5cf6;
     --primary-foreground: #ffffff;
     --border: rgba(18, 29, 28, 0.1);
-    --input: rgba(255, 255, 255, 0.6);
+    --input: rgba(255, 255, 255, 0.2);
     --ring: rgba(18, 29, 28, 0.35);
 
     --ink: #121d1c;
@@ -65,12 +65,19 @@
     --hairline: rgba(18, 29, 28, 0.08);
 
     /* Panel = the big window, tile = cards inside it */
-    --panel: rgba(246, 253, 253, 0.42);
-    --panel-edge: rgba(255, 255, 255, 0.7);
-    --tile: rgba(255, 255, 255, 0.5);
-    --tile-strong: rgba(255, 255, 255, 0.78);
-    --tile-edge: rgba(255, 255, 255, 0.85);
+    --panel: rgba(240, 250, 250, 0.3);
+    --panel-edge: rgba(255, 255, 255, 0.6);
+    --tile: rgba(255, 255, 255, 0.16);
+    --tile-strong: rgba(255, 255, 255, 0.34);
+    --tile-edge: rgba(255, 255, 255, 0.55);
     --shadow: 0 30px 60px -30px rgba(20, 62, 70, 0.35);
+
+    /* Bubble glass: brighter at the top, a rim of light, soft depth underneath */
+    --card-fill: linear-gradient(165deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.1) 100%);
+    --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.15), 0 10px 30px -18px rgba(20, 62, 70, 0.35);
+    --bubble-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.16) 100%);
+    --bubble-edge: rgba(255, 255, 255, 0.75);
+    --bubble-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 6px 16px -8px rgba(20, 62, 70, 0.3);
 
     --gasto: #d63a2f;
     --ingreso: #1f8a4c;
@@ -103,6 +110,12 @@
     --tile-strong: rgba(255, 255, 255, 0.16);
     --tile-edge: rgba(255, 255, 255, 0.12);
     --shadow: 0 40px 80px -30px rgba(0, 8, 12, 0.65);
+
+    --card-fill: var(--tile);
+    --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    --bubble-fill: var(--tile-strong);
+    --bubble-edge: var(--tile-edge);
+    --bubble-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 20px -8px rgba(0, 0, 0, 0.35);
 
     --gasto: #ff7a6e;
     --ingreso: #5fd99a;
@@ -168,9 +181,9 @@
     }
 
     .glass-card {
-        background: var(--tile);
+        background: var(--card-fill);
         border: 1px solid var(--tile-edge);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        box-shadow: var(--card-shadow);
         backdrop-filter: blur(24px) saturate(160%);
         -webkit-backdrop-filter: blur(24px) saturate(160%);
         border-radius: 1.5rem;
@@ -195,6 +208,15 @@
 
     .pill-button:hover {
         background: color-mix(in srgb, var(--ink) 88%, transparent);
+    }
+
+    /* Selected state (sidebar item, segmented control): a raised glass bubble */
+    .glass-bubble {
+        background: var(--bubble-fill);
+        border: 1px solid var(--bubble-edge);
+        box-shadow: var(--bubble-shadow);
+        backdrop-filter: blur(16px) saturate(180%);
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
     }
 
     .pill-ghost {

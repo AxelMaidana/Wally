@@ -1,0 +1,29 @@
+{
+  "enabledPlugins": {
+    "supabase@supabase-agent-skills": true,
+    "oh-my-claudecode@omc": true,
+    "chrome-devtools-mcp@chrome-devtools-plugins": true,
+    "vercel@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "supabase-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "supabase/agent-skills"
+      }
+    },
+    "omc": {
+      "source": {
+        "source": "github",
+        "repo": "Yeachan-Heo/oh-my-claudecode"
+      }
+    },
+    "chrome-devtools-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ChromeDevTools/chrome-devtools-mcp"
+      }
+    }
+  }
+}

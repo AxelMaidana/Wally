@@ -56,6 +56,19 @@ export const AuthProvider = ({ children }) => {
         if (error) throw error;
     };
 
+    // Only display_name, photo_url and telegram_token are writable by the user (see the migration)
+    const updateProfile = async (fields) => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .update({ ...fields, updated_at: new Date().toISOString() })
+            .eq('id', user.id)
+            .select()
+            .single();
+        if (error) throw error;
+        setUserData(data);
+        return data;
+    };
+
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setUser(session?.user ?? null);
@@ -91,6 +104,7 @@ export const AuthProvider = ({ children }) => {
         login,
         loginWithGoogle,
         logout,
+        updateProfile,
         loading
     };
 
