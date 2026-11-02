@@ -129,12 +129,20 @@
 }
 
 @layer base {
+    /* Every element starts hidden, so a scroll area's visibility doesn't leak into
+       nested ones; its scrollbar pseudo-elements inherit the element's own value */
+    * {
+        --scrollbar-alpha: 0;
+    }
+
     :root {
         color-scheme: light;
+        --scrollbar-rgb: 18 29 28;
     }
 
     .dark {
         color-scheme: dark;
+        --scrollbar-rgb: 242 251 251;
     }
 
     body {
@@ -149,10 +157,10 @@
         outline-offset: 2px;
     }
 
-    /* iOS-style scrollbar: a thin floating pill, no track or arrows */
+    /* iOS-style scrollbar: a thin floating pill, hidden until you hover or scroll */
     ::-webkit-scrollbar {
-        width: 12px;
-        height: 12px;
+        width: 10px;
+        height: 10px;
     }
 
     ::-webkit-scrollbar-track,
@@ -160,24 +168,28 @@
         background: transparent;
     }
 
+    /* Keeps the pill clear of the panels' rounded corners */
+    ::-webkit-scrollbar-track {
+        margin-block: 24px;
+    }
+
     ::-webkit-scrollbar-button {
         display: none;
     }
 
+    /* --scrollbar-alpha is faded in and out by src/lib/scrollbars.js. Chrome doesn't
+       repaint scrollbars on :hover or class changes, but it does on custom properties. */
     ::-webkit-scrollbar-thumb {
-        background-color: var(--hairline);
+        background-color: rgb(var(--scrollbar-rgb) / var(--scrollbar-alpha));
         background-clip: padding-box;
-        border: 4px solid transparent;
+        border: 3px solid transparent;
         border-radius: 9999px;
         min-height: 40px;
     }
 
-    :hover::-webkit-scrollbar-thumb {
-        background-color: var(--ink-3);
-    }
-
+    ::-webkit-scrollbar-thumb:hover,
     ::-webkit-scrollbar-thumb:active {
-        background-color: var(--ink-2);
+        background-color: rgb(var(--scrollbar-rgb) / 0.6);
     }
 
     /* Firefox has no ::-webkit-scrollbar; Chrome would ignore it if these were set */
