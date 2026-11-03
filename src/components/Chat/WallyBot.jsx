@@ -8,11 +8,26 @@ import {
     Square,
     RotateCcw
 } from 'lucide-react';
-import { processChatMessage } from '../../services/aiService';
+import { processChatMessage, undoTransaction } from '../../services/aiService';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { OPEN_WALLY_EVENT } from './wallyEvents';
 import { cn } from '../../lib/utils';
 import { sidebarSpring, softSpring } from '../../lib/motion';
+
+const capitalize = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
+
+// "2026-11-03" -> "hoy" / "ayer" / "1 nov"
+const formatDay = (iso) => {
+    if (!iso) return "hoy";
+    const [y, m, d] = iso.split("-").map(Number);
+    const day = new Date(y, m - 1, d);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - day) / 864e5);
+    if (diff === 0) return "hoy";
+    if (diff === 1) return "ayer";
+    return day.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+};
 
 const useMediaQuery = (query) => {
     const [matches, setMatches] = useState(() => matchMedia(query).matches);
@@ -62,9 +77,8 @@ const TypingDots = () => (
 export const WallyBot = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
-        { id: 1, text: "Hola, soy Wally. Contame qué gastaste o cobraste y lo anoto por vos.", isBot: true }
+        { id: 1, text: "Hola, soy Wally. Mandame un audio o escribime qué gastaste o cobraste y lo anoto.", isBot: true, local: true }
     ]);
-    const [chatHistory, setChatHistory] = useState([]); // Real AI history
     const [inputValue, setInputValue] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef(null);
@@ -101,31 +115,34 @@ export const WallyBot = () => {
         }
     }, [isRecording, audioBlob]);
 
-    const handleSendText = async (overrideText) => {
-        // Ensure we only use overrideText if it's a string (not an Event object)
-        const textToSend = (typeof overrideText === 'string') ? overrideText : inputValue;
+    // What the AI sees of the conversation: the greeting and failed sends aren't real turns
+    const historyFor = (list) => list
+        .filter((m) => !m.local && m.status !== "error")
+        .map((m) => ({ role: m.isBot ? "model" : "user", text: m.text }));
 
-        if (!textToSend || !textToSend.trim() || isLoading) return;
+    const addBotReply = (response) => setMessages((prev) => [...prev, {
+        id: Date.now() + 1,
+        text: response.text,
+        isBot: true,
+        status: response.status,
+        saved: response.saved,
+    }]);
 
+    const addError = (text) => setMessages((prev) => [...prev, { id: Date.now() + 1, text, isBot: true, status: "error", local: true }]);
+
+    const handleSendText = async () => {
+        const text = inputValue.trim();
+        if (!text || isLoading) return;
+
+        const history = historyFor(messages);
+        setMessages((prev) => [...prev, { id: Date.now(), text, isBot: false }]);
+        setInputValue("");
+        setIsLoading(true);
         try {
-            const userMsg = { id: Date.now(), text: textToSend, isBot: false };
-            setMessages(prev => [...prev, userMsg]);
-            setInputValue("");
-            setIsLoading(true);
-
-            const response = await processChatMessage(textToSend, chatHistory);
-
-            const botMsg = { id: Date.now() + 1, text: response.text, isBot: true, status: response.status };
-            setMessages(prev => [...prev, botMsg]);
-            if (response.newHistory) setChatHistory(response.newHistory);
+            addBotReply(await processChatMessage({ text }, history));
         } catch (error) {
             console.error("Chat Error:", error);
-            setMessages(prev => [...prev, {
-                id: Date.now(),
-                text: "No se pudo enviar el mensaje. Revisá tu conexión y probá de nuevo.",
-                isBot: true,
-                status: "error"
-            }]);
+            addError("No se pudo enviar el mensaje. Revisá tu conexión y probá de nuevo.");
         } finally {
             setIsLoading(false);
         }
@@ -134,44 +151,42 @@ export const WallyBot = () => {
     const handleSendAudio = async () => {
         if (!audioBlob || isLoading) return;
 
+        const id = Date.now();
+        const history = historyFor(messages);
+        // Shown as "Mensaje de voz" until the workflow sends back what it heard
+        setMessages((prev) => [...prev, { id, text: "Mensaje de voz", isBot: false, isAudio: true, local: true }]);
+        setIsLoading(true);
         try {
-            setIsLoading(true);
             const base64 = await convertBlobToBase64(audioBlob);
-
-            const userMsg = { id: Date.now(), text: "Mensaje de voz", isBot: false, isAudio: true };
-            setMessages(prev => [...prev, userMsg]);
-
-            const response = await processChatMessage(
-                { base64, mimeType: audioBlob.type },
-                chatHistory,
-                true
-            );
-
-            const botMsg = { id: Date.now() + 1, text: response.text, isBot: true, status: response.status };
-            setMessages(prev => [...prev, botMsg]);
-            if (response.newHistory) setChatHistory(response.newHistory);
+            const response = await processChatMessage({ audio: { base64, mimeType: audioBlob.type } }, history);
+            if (response.transcript) {
+                setMessages((prev) => prev.map((m) => m.id === id ? { ...m, text: response.transcript, local: false } : m));
+            }
+            addBotReply(response);
         } catch (error) {
             console.error("Audio Chat Error:", error);
-            setMessages(prev => [...prev, {
-                id: Date.now(),
-                text: "No se pudo procesar el audio. Revisá que el micrófono tenga permiso y probá de nuevo.",
-                isBot: true,
-                status: "error"
-            }]);
+            addError("No se pudo procesar el audio. Probá de nuevo.");
         } finally {
             setIsLoading(false);
             setAudioBlob(null);
         }
     };
 
-    const clearChat = () => {
-        setMessages([{ id: 1, text: "Empezamos de nuevo. ¿Qué querés registrar?", isBot: true }]);
-        setChatHistory([]);
+    const handleUndo = async (msg) => {
+        const { error } = await undoTransaction(msg.saved.id);
+        if (error) {
+            addError("No lo pude deshacer. Borralo desde Movimientos.");
+            return;
+        }
+        setMessages((prev) => [
+            ...prev.map((m) => m.id === msg.id ? { ...m, undone: true } : m),
+            { id: Date.now(), text: "Listo, lo saqué.", isBot: true },
+        ]);
     };
 
-    // Quick Action Buttons Logic
-    const lastBotMessage = messages[messages.length - 1];
-    const showConfirmationButtons = lastBotMessage?.isBot && lastBotMessage.text.includes("¿Deseas subir esta información?");
+    const clearChat = () => {
+        setMessages([{ id: 1, text: "Empezamos de nuevo. ¿Qué querés registrar?", isBot: true, local: true }]);
+    };
 
     return (
         <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6 z-50 flex flex-col items-end">
@@ -247,31 +262,27 @@ export const WallyBot = () => {
                                     )}>
                                         {msg.isAudio && <Mic size={14} className="inline mr-1.5 -mt-0.5" />}
                                         {msg.text}
+                                        {msg.saved && (
+                                            <span className="mt-2 flex items-center justify-between gap-3 border-t border-hairline pt-2 text-[13px] text-ink-2">
+                                                <span className="truncate">
+                                                    {msg.saved.observacion || `${capitalize(msg.saved.categoria)} · ${formatDay(msg.saved.fecha)}`}
+                                                </span>
+                                                {msg.undone ? (
+                                                    <span className="shrink-0">Deshecho</span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleUndo(msg)}
+                                                        className="shrink-0 font-semibold text-[#0a84ff] hover:opacity-80"
+                                                    >
+                                                        Deshacer
+                                                    </button>
+                                                )}
+                                            </span>
+                                        )}
                                     </div>
                                 </motion.div>
                             ))}
-
-                            {showConfirmationButtons && !isLoading && (
-                                <div className="flex flex-wrap gap-2 pt-2">
-                                    {[
-                                        { label: "Sí, guardar", reply: "si", className: "pill-button" },
-                                        { label: "Editar", reply: "editar", className: "pill-ghost" },
-                                        { label: "Cancelar", reply: "no", className: "pill-ghost" }
-                                    ].map((action, i) => (
-                                        <motion.button
-                                            key={action.reply}
-                                            type="button"
-                                            initial={{ opacity: 0, scale: 0.85 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            transition={{ ...softSpring, delay: 0.15 + i * 0.05 }}
-                                            onClick={() => handleSendText(action.reply)}
-                                            className={cn(action.className, "h-9 text-[13px]")}
-                                        >
-                                            {action.label}
-                                        </motion.button>
-                                    ))}
-                                </div>
-                            )}
 
                             <AnimatePresence>
                                 {isLoading && (

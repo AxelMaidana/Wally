@@ -1,0 +1,512 @@
+{
+  "name": "Wally - chat",
+  "nodes": [
+    {
+      "id": "3334afeb-7f7f-4531-98e7-3e260019ef7d",
+      "name": "Chat de Wally",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wally-chat",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "8a16b721-c7c4-49fd-85c2-14d2b10184ed"
+    },
+    {
+      "id": "fe5af27f-466d-4c0f-8590-94988eb28bb0",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dac2dc98-4742-43fc-89ed-533d07305e75",
+              "name": "supabaseUrl",
+              "value": "https://eeoedgnapkfdrkerntop.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "191d089d-c1b1-411f-9af3-0f00116aa321",
+              "name": "geminiModel",
+              "value": "gemini-2.5-flash",
+              "type": "string"
+            },
+            {
+              "id": "46325bad-06ed-474d-9b77-b31a0c5c60e0",
+              "name": "categorias",
+              "value": "comida, supermercado, transporte, hogar, servicios, salud, ocio, compras, ropa, sueldo, trabajo, otros",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "153a5f33-c815-4332-91a7-462f06284f15",
+      "name": "Validar sesión",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Chat de Wally').first().json.headers.apikey }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $('Chat de Wally').first().json.headers.authorization }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "554500c0-9260-4227-a632-efac562e697d",
+      "name": "¿Sesión válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c4a235ba-58f5-4b7f-9147-cf9a1d6ccb30",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00be264d-366b-4db4-a726-a50f1b17be8b",
+      "name": "Preparar pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Arma el pedido a Gemini: instrucciones, historial corto y el mensaje (texto o audio)\nconst config = $('Config').first().json;\nconst body = $('Chat de Wally').first().json.body ?? {};\n\n// Resistencia, Chaco (UTC-3, sin horario de verano). Siempre la hora real del servidor, nunca la del modelo\nconst tz = 'America/Argentina/Cordoba';\nconst ahora = new Date();\nconst hoy = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora);\nconst hora = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ahora);\nconst fechaLarga = new Intl.DateTimeFormat('es-AR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(ahora);\n\nconst instrucciones = [\n  'Sos Wally, un asistente que anota los gastos e ingresos de una persona de Argentina.',\n  'Ahora es ' + fechaLarga + ', ' + hora + ' hs (' + hoy + ', hora de Resistencia, Chaco, Argentina, UTC-3). Usá siempre esta fecha y hora como \"ahora\"; no supongas otra.',\n  'Vas a recibir un mensaje de texto o un audio. Los audios pueden tener ruido y modismos: \"lucas\" o \"luquitas\" son miles, \"palo\" es un millón.',\n  '',\n  'Elegí una acción:',\n  '- \"guardar\": el mensaje describe un gasto o ingreso y el monto está claro.',\n  '- \"preguntar\": describe un movimiento pero falta el monto; preguntá solo lo que falta. Usá el historial para completar datos dichos antes.',\n  '- \"charlar\": saludos u otra cosa; respondé breve y recordá que podés anotar gastos e ingresos.',\n  '',\n  'Campos del movimiento:',\n  '- monto: número positivo, sin signos ni separadores de miles.',\n  '- motivo: corto, qué fue (ej. \"Supermercado\", \"Sueldo\", \"Nafta\").',\n  '- tipo: \"gasto\" o \"ingreso\".',\n  '- categoria: una de ' + config.categorias + '.',\n  '- fecha: YYYY-MM-DD. Resolvé \"ayer\", \"anoche\", \"el viernes\", \"el 3\", etc. respecto de ahora. Si no la dice, es hoy. Nunca una fecha futura salvo que lo diga explícitamente.',\n  '- hora: HH:MM (24 hs) solo si dice cuándo fue (\"a las 9\", \"al mediodía\", \"anoche\" ≈ 22:00). Si no lo dice, vacío: se usa la hora actual si es hoy.',\n  '- observacion: detalles extra que haya dicho (con quién, forma de pago, en cuotas, etc.). Vacío si no hay.',\n  '',\n  'transcripcion: si el mensaje es un audio, lo que dijo la persona, textual. Si es texto, vacío.',\n  'respuesta: texto breve en español rioplatense (voseo) para mostrarle. Si guardás, confirmá en una línea, por ejemplo \"Anoté $4.500 de Supermercado, hoy.\"',\n].join('\\n');\n\n// Gemini necesita que la conversación empiece con el usuario\nconst historial = (Array.isArray(body.history) ? body.history : [])\n  .filter((m) => m && typeof m.text === 'string' && m.text.trim())\n  .slice(-10)\n  .map((m) => ({ role: m.role === 'model' ? 'model' : 'user', parts: [{ text: m.text }] }));\nwhile (historial.length && historial[0].role !== 'user') historial.shift();\n\nlet partes;\nif (body.audio && body.audio.base64) {\n  partes = [\n    { inline_data: { mime_type: String(body.audio.mimeType || 'audio/webm').split(';')[0], data: body.audio.base64 } },\n    { text: 'Audio de la persona.' },\n  ];\n} else if (typeof body.text === 'string' && body.text.trim()) {\n  partes = [{ text: body.text.trim().slice(0, 2000) }];\n} else {\n  return [{ json: { vacio: true } }];\n}\n\nconst texto = { type: 'STRING' };\nconst geminiRequest = {\n  system_instruction: { parts: [{ text: instrucciones }] },\n  contents: [...historial, { role: 'user', parts: partes }],\n  generationConfig: {\n    temperature: 0.2,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        accion: { type: 'STRING', enum: ['guardar', 'preguntar', 'charlar'] },\n        transcripcion: texto,\n        respuesta: texto,\n        movimiento: {\n          type: 'OBJECT',\n          nullable: true,\n          properties: {\n            monto: { type: 'NUMBER' },\n            motivo: texto,\n            tipo: { type: 'STRING', enum: ['gasto', 'ingreso'] },\n            categoria: texto,\n            fecha: texto,\n            hora: texto,\n            observacion: texto,\n          },\n          required: ['monto', 'motivo', 'tipo', 'categoria', 'fecha', 'observacion'],\n        },\n      },\n      required: ['accion', 'transcripcion', 'respuesta'],\n    },\n  },\n};\n\nreturn [{ json: { geminiRequest, hoy, hora, esAudio: !!(body.audio && body.audio.base64) } }];"
+      }
+    },
+    {
+      "id": "800108e0-3649-4278-9f27-c7cf132e1a53",
+      "name": "¿Mensaje vacío?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ec8d7649-4bed-4559-9e84-127322e010d8",
+              "leftValue": "={{ $json.vacio }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c05fb128-31b5-43e9-9b78-0978ce5b8562",
+      "name": "Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $('Config').first().json.geminiModel }}:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiRequest) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Gemini API key"
+        }
+      }
+    },
+    {
+      "id": "a68cef23-c700-4885-a270-443959b73851",
+      "name": "Interpretar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        220
+      ],
+      "parameters": {
+        "jsCode": "// Lee la respuesta de Gemini y, si hay que guardar, arma la fila para Supabase\nconst res = $input.first().json;\nconst { hoy, hora: horaActual, esAudio } = $('Preparar pedido').first().json;\nconst error = (text) => [{ json: { accion: 'error', response: { text, status: 'error' } } }];\n\nif (res.statusCode !== 200) {\n  return error(res.statusCode === 429\n    ? 'Llegué al límite de la IA por ahora. Probá de nuevo en un rato.'\n    : 'No pude hablar con la IA. Revisá la credencial de Gemini en n8n.');\n}\n\nconst raw = (res.body?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');\nlet ia;\ntry {\n  ia = JSON.parse(raw);\n} catch {\n  return error(esAudio ? 'No te entendí bien el audio. ¿Me lo repetís?' : 'No te entendí. ¿Me lo decís de otra forma?');\n}\n\nconst transcript = esAudio ? (ia.transcripcion || '').trim() : '';\nconst m = ia.movimiento;\nconst monto = Math.round(Math.abs(Number(m?.monto)) * 100) / 100;\n\nif (ia.accion !== 'guardar' || !m || !(monto > 0)) {\n  // \"guardar\" without a usable amount is really a question\n  const accion = ia.accion === 'guardar' ? 'preguntar' : (ia.accion || 'charlar');\n  return [{ json: { accion, response: { text: ia.respuesta || '¿Qué querés anotar?', status: 'success', transcript } } }];\n}\n\nconst fecha = /^\\d{4}-\\d{2}-\\d{2}$/.test(m.fecha || '') ? m.fecha : hoy;\nconst motivo = (m.motivo || '').trim() || 'Sin motivo';\n// Una hora futura de hoy es un error de la IA: se descarta\nlet hora = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(m.hora || '') ? m.hora : '';\nif (hora && fecha === hoy && hora > horaActual) hora = '';\nconst fila = {\n  monto,\n  descripcion: motivo.charAt(0).toUpperCase() + motivo.slice(1),\n  tipo: m.tipo === 'ingreso' ? 'ingreso' : 'gasto',\n  categoria: (m.categoria || 'otros').toLowerCase().trim() || 'otros',\n  fecha,\n  observacion: (m.observacion || '').trim(),\n  // Los listados ordenan y agrupan por created_at, así que lleva el momento real del movimiento:\n  // la hora que dijo; si no dijo, ahora (si es hoy) o el mediodía de ese día\n  created_at: hora ? fecha + 'T' + hora + ':00-03:00' : (fecha === hoy ? new Date().toISOString() : fecha + 'T12:00:00-03:00'),\n};\n\nreturn [{ json: { accion: 'guardar', fila, response: { text: ia.respuesta, status: 'success', transcript } } }];"
+      }
+    },
+    {
+      "id": "d1344abe-c302-4928-90b8-785139d7d3c4",
+      "name": "¿Guardar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        220
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7366eb12-6400-4af6-88c6-6e6917b3d8f9",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "guardar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d224be1c-42c5-46c1-9d11-8e486d2d9122",
+      "name": "Guardar movimiento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/transactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Chat de Wally').first().json.headers.apikey }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $('Chat de Wally').first().json.headers.authorization }}"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.fila) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "3dd88896-a59a-4a9b-90c1-6cac7abb5d7e",
+      "name": "Armar respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        120
+      ],
+      "parameters": {
+        "jsCode": "// Confirma lo guardado; si Supabase lo rechazó, avisa sin perder lo que dijo el usuario\nconst res = $input.first().json;\nconst previo = $('Interpretar').first().json.response;\n\nif (res.statusCode !== 201) {\n  return [{ json: { response: { text: 'Entendí el movimiento pero no lo pude guardar. Probá de nuevo.', status: 'error', transcript: previo.transcript } } }];\n}\n\nconst guardado = Array.isArray(res.body) ? res.body[0] : res.body;\nreturn [{ json: { response: { ...previo, saved: guardado } } }];"
+      }
+    },
+    {
+      "id": "95f18f13-7dcc-4699-98fa-80576d995c85",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        240
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "c48af2b9-6236-4b99-b41b-7f0f3db403f6",
+      "name": "Sin sesión",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        420
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ text: \"Tu sesión venció. Volvé a iniciar sesión.\", status: \"error\" }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "f3aa50c9-1042-4a61-a796-5b5cac158e54",
+      "name": "Mensaje vacío",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        40
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ text: \"No me llegó ningún mensaje.\", status: \"error\" }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chat de Wally": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Validar sesión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar sesión": {
+      "main": [
+        [
+          {
+            "node": "¿Sesión válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Sesión válida?": {
+      "main": [
+        [
+          {
+            "node": "Preparar pedido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin sesión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar pedido": {
+      "main": [
+        [
+          {
+            "node": "¿Mensaje vacío?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Mensaje vacío?": {
+      "main": [
+        [
+          {
+            "node": "Mensaje vacío",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "main": [
+        [
+          {
+            "node": "Interpretar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar": {
+      "main": [
+        [
+          {
+            "node": "¿Guardar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Guardar?": {
+      "main": [
+        [
+          {
+            "node": "Guardar movimiento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar movimiento": {
+      "main": [
+        [
+          {
+            "node": "Armar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,5 +1,9 @@
 import { useState, useRef } from 'react';
 
+// Each browser records a different format (Safari only does mp4); use the first one it supports
+const AUDIO_TYPES = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'];
+const pickAudioType = () => AUDIO_TYPES.find((type) => MediaRecorder.isTypeSupported?.(type));
+
 export const useVoiceRecorder = () => {
     const [isRecording, setIsRecording] = useState(false);
     const [audioBlob, setAudioBlob] = useState(null);
@@ -9,7 +13,8 @@ export const useVoiceRecorder = () => {
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder.current = new MediaRecorder(stream);
+            const mimeType = pickAudioType();
+            mediaRecorder.current = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
             audioChunks.current = [];
 
             mediaRecorder.current.ondataavailable = (event) => {
@@ -19,7 +24,7 @@ export const useVoiceRecorder = () => {
             };
 
             mediaRecorder.current.onstop = () => {
-                const blob = new Blob(audioChunks.current, { type: 'audio/webm' });
+                const blob = new Blob(audioChunks.current, { type: mediaRecorder.current.mimeType || mimeType || 'audio/webm' });
                 setAudioBlob(blob);
             };
 

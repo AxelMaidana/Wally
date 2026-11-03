@@ -63,7 +63,7 @@ const TransactionRow = ({ row, hovered, onHover, confirming, onAskDelete, onCanc
             <div className="relative flex-1 min-w-0">
                 <p className="text-[15px] font-medium truncate">{row.descripcion || 'Sin descripción'}</p>
                 <p className="text-[13px] text-ink-2 truncate">
-                    {capitalize(row.categoria)}, {new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                    {capitalize(row.categoria)}, {row.observacion || new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                 </p>
             </div>
 
@@ -161,7 +161,7 @@ const HistoryPage = () => {
         const query = search.trim().toLowerCase();
         const visible = monthRows.filter((tx) =>
             (filter === 'todos' || tx.tipo === filter) &&
-            (!query || `${tx.descripcion} ${tx.categoria}`.toLowerCase().includes(query))
+            (!query || `${tx.descripcion} ${tx.categoria} ${tx.observacion ?? ''}`.toLowerCase().includes(query))
         );
 
         const byDay = new Map();
