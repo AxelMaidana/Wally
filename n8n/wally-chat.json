@@ -2,7 +2,7 @@
   "name": "Wally - chat",
   "nodes": [
     {
-      "id": "3334afeb-7f7f-4531-98e7-3e260019ef7d",
+      "id": "c988aa3b-8eda-4eaf-bbd5-c42fc586639e",
       "name": "Chat de Wally",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -18,10 +18,10 @@
           "allowedOrigins": "*"
         }
       },
-      "webhookId": "8a16b721-c7c4-49fd-85c2-14d2b10184ed"
+      "webhookId": "91a37352-d462-4f59-90ec-23afb3136472"
     },
     {
-      "id": "fe5af27f-466d-4c0f-8590-94988eb28bb0",
+      "id": "f0efa18b-6064-47ed-a3de-60c9c1202da2",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -33,19 +33,25 @@
         "assignments": {
           "assignments": [
             {
-              "id": "dac2dc98-4742-43fc-89ed-533d07305e75",
+              "id": "2a4ce29a-35e0-424e-9901-9fc8648f5bf4",
               "name": "supabaseUrl",
               "value": "https://eeoedgnapkfdrkerntop.supabase.co",
               "type": "string"
             },
             {
-              "id": "191d089d-c1b1-411f-9af3-0f00116aa321",
-              "name": "geminiModel",
-              "value": "gemini-2.5-flash",
+              "id": "df665c2c-8854-4ab5-b6f0-c25ea24980c3",
+              "name": "modeloChat",
+              "value": "openai/gpt-oss-120b",
               "type": "string"
             },
             {
-              "id": "46325bad-06ed-474d-9b77-b31a0c5c60e0",
+              "id": "f0daf17b-124b-4335-b648-8337cde88f77",
+              "name": "modeloAudio",
+              "value": "whisper-large-v3-turbo",
+              "type": "string"
+            },
+            {
+              "id": "d85b27d9-b7b3-471e-8b68-15bf5c72038c",
               "name": "categorias",
               "value": "comida, supermercado, transporte, hogar, servicios, salud, ocio, compras, ropa, sueldo, trabajo, otros",
               "type": "string"
@@ -56,7 +62,7 @@
       }
     },
     {
-      "id": "153a5f33-c815-4332-91a7-462f06284f15",
+      "id": "694ba171-b1ed-4d6a-9472-5768932552a2",
       "name": "Validar sesión",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -92,7 +98,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "554500c0-9260-4227-a632-efac562e697d",
+      "id": "0c65fc66-fb7b-4aaa-ab3c-54249cbfe302",
       "name": "¿Sesión válida?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -110,7 +116,7 @@
           },
           "conditions": [
             {
-              "id": "c4a235ba-58f5-4b7f-9147-cf9a1d6ccb30",
+              "id": "1e81fa5a-663c-48fb-afbc-abbfcde9cf4a",
               "leftValue": "={{ $json.statusCode }}",
               "rightValue": 200,
               "operator": {
@@ -125,26 +131,43 @@
       }
     },
     {
-      "id": "00be264d-366b-4db4-a726-a50f1b17be8b",
+      "id": "a29a9328-f503-4b04-bf97-159cb92a3a65",
+      "name": "Sin sesión",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        480
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ text: \"Tu sesión venció. Volvé a iniciar sesión.\", status: \"error\" }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "99f51c08-f910-4c71-a6cb-96fa8c223913",
       "name": "Preparar pedido",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         880,
-        200
+        280
       ],
       "parameters": {
-        "jsCode": "// Arma el pedido a Gemini: instrucciones, historial corto y el mensaje (texto o audio)\nconst config = $('Config').first().json;\nconst body = $('Chat de Wally').first().json.body ?? {};\n\n// Resistencia, Chaco (UTC-3, sin horario de verano). Siempre la hora real del servidor, nunca la del modelo\nconst tz = 'America/Argentina/Cordoba';\nconst ahora = new Date();\nconst hoy = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora);\nconst hora = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ahora);\nconst fechaLarga = new Intl.DateTimeFormat('es-AR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(ahora);\n\nconst instrucciones = [\n  'Sos Wally, un asistente que anota los gastos e ingresos de una persona de Argentina.',\n  'Ahora es ' + fechaLarga + ', ' + hora + ' hs (' + hoy + ', hora de Resistencia, Chaco, Argentina, UTC-3). Usá siempre esta fecha y hora como \"ahora\"; no supongas otra.',\n  'Vas a recibir un mensaje de texto o un audio. Los audios pueden tener ruido y modismos: \"lucas\" o \"luquitas\" son miles, \"palo\" es un millón.',\n  '',\n  'Elegí una acción:',\n  '- \"guardar\": el mensaje describe un gasto o ingreso y el monto está claro.',\n  '- \"preguntar\": describe un movimiento pero falta el monto; preguntá solo lo que falta. Usá el historial para completar datos dichos antes.',\n  '- \"charlar\": saludos u otra cosa; respondé breve y recordá que podés anotar gastos e ingresos.',\n  '',\n  'Campos del movimiento:',\n  '- monto: número positivo, sin signos ni separadores de miles.',\n  '- motivo: corto, qué fue (ej. \"Supermercado\", \"Sueldo\", \"Nafta\").',\n  '- tipo: \"gasto\" o \"ingreso\".',\n  '- categoria: una de ' + config.categorias + '.',\n  '- fecha: YYYY-MM-DD. Resolvé \"ayer\", \"anoche\", \"el viernes\", \"el 3\", etc. respecto de ahora. Si no la dice, es hoy. Nunca una fecha futura salvo que lo diga explícitamente.',\n  '- hora: HH:MM (24 hs) solo si dice cuándo fue (\"a las 9\", \"al mediodía\", \"anoche\" ≈ 22:00). Si no lo dice, vacío: se usa la hora actual si es hoy.',\n  '- observacion: detalles extra que haya dicho (con quién, forma de pago, en cuotas, etc.). Vacío si no hay.',\n  '',\n  'transcripcion: si el mensaje es un audio, lo que dijo la persona, textual. Si es texto, vacío.',\n  'respuesta: texto breve en español rioplatense (voseo) para mostrarle. Si guardás, confirmá en una línea, por ejemplo \"Anoté $4.500 de Supermercado, hoy.\"',\n].join('\\n');\n\n// Gemini necesita que la conversación empiece con el usuario\nconst historial = (Array.isArray(body.history) ? body.history : [])\n  .filter((m) => m && typeof m.text === 'string' && m.text.trim())\n  .slice(-10)\n  .map((m) => ({ role: m.role === 'model' ? 'model' : 'user', parts: [{ text: m.text }] }));\nwhile (historial.length && historial[0].role !== 'user') historial.shift();\n\nlet partes;\nif (body.audio && body.audio.base64) {\n  partes = [\n    { inline_data: { mime_type: String(body.audio.mimeType || 'audio/webm').split(';')[0], data: body.audio.base64 } },\n    { text: 'Audio de la persona.' },\n  ];\n} else if (typeof body.text === 'string' && body.text.trim()) {\n  partes = [{ text: body.text.trim().slice(0, 2000) }];\n} else {\n  return [{ json: { vacio: true } }];\n}\n\nconst texto = { type: 'STRING' };\nconst geminiRequest = {\n  system_instruction: { parts: [{ text: instrucciones }] },\n  contents: [...historial, { role: 'user', parts: partes }],\n  generationConfig: {\n    temperature: 0.2,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        accion: { type: 'STRING', enum: ['guardar', 'preguntar', 'charlar'] },\n        transcripcion: texto,\n        respuesta: texto,\n        movimiento: {\n          type: 'OBJECT',\n          nullable: true,\n          properties: {\n            monto: { type: 'NUMBER' },\n            motivo: texto,\n            tipo: { type: 'STRING', enum: ['gasto', 'ingreso'] },\n            categoria: texto,\n            fecha: texto,\n            hora: texto,\n            observacion: texto,\n          },\n          required: ['monto', 'motivo', 'tipo', 'categoria', 'fecha', 'observacion'],\n        },\n      },\n      required: ['accion', 'transcripcion', 'respuesta'],\n    },\n  },\n};\n\nreturn [{ json: { geminiRequest, hoy, hora, esAudio: !!(body.audio && body.audio.base64) } }];"
+        "jsCode": "// Normaliza lo que mandó la app. Un audio pasa como archivo binario para la transcripción\nconst body = $('Chat de Wally').first().json.body ?? {};\nconst historial = (Array.isArray(body.history) ? body.history : [])\n  .filter((m) => m && typeof m.text === 'string' && m.text.trim())\n  .slice(-10)\n  .map((m) => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text.slice(0, 2000) }));\n\nif (body.audio && body.audio.base64) {\n  const mimeType = String(body.audio.mimeType || 'audio/webm').split(';')[0];\n  const ext = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'mp4', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/x-m4a': 'm4a' }[mimeType] || 'webm';\n  return [{\n    json: { esAudio: true, historial },\n    binary: { audio: { data: body.audio.base64, mimeType, fileName: 'audio.' + ext } },\n  }];\n}\n\nconst texto = typeof body.text === 'string' ? body.text.trim().slice(0, 2000) : '';\nif (!texto) return [{ json: { vacio: true } }];\nreturn [{ json: { esAudio: false, texto, historial } }];"
       }
     },
     {
-      "id": "800108e0-3649-4278-9f27-c7cf132e1a53",
+      "id": "018c2954-7d50-416c-872d-33f999431f85",
       "name": "¿Mensaje vacío?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
         1100,
-        200
+        280
       ],
       "parameters": {
         "conditions": {
@@ -156,7 +179,7 @@
           },
           "conditions": [
             {
-              "id": "ec8d7649-4bed-4559-9e84-127322e010d8",
+              "id": "efe5b3ff-9b78-483b-a540-032536d6c0fd",
               "leftValue": "={{ $json.vacio }}",
               "rightValue": "",
               "operator": {
@@ -172,61 +195,30 @@
       }
     },
     {
-      "id": "c05fb128-31b5-43e9-9b78-0978ce5b8562",
-      "name": "Gemini",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "4dd34922-cf77-4515-adba-dd0f33ecdff1",
+      "name": "Mensaje vacío",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "position": [
         1320,
-        220
+        100
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $('Config').first().json.geminiModel }}:generateContent",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.geminiRequest) }}",
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ text: \"No me llegó ningún mensaje.\", status: \"error\" }) }}",
         "options": {
-          "response": {
-            "response": {
-              "fullResponse": true,
-              "neverError": true
-            }
-          },
-          "timeout": 60000
-        }
-      },
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "Gemini API key"
+          "responseCode": 400
         }
       }
     },
     {
-      "id": "a68cef23-c700-4885-a270-443959b73851",
-      "name": "Interpretar",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1540,
-        220
-      ],
-      "parameters": {
-        "jsCode": "// Lee la respuesta de Gemini y, si hay que guardar, arma la fila para Supabase\nconst res = $input.first().json;\nconst { hoy, hora: horaActual, esAudio } = $('Preparar pedido').first().json;\nconst error = (text) => [{ json: { accion: 'error', response: { text, status: 'error' } } }];\n\nif (res.statusCode !== 200) {\n  return error(res.statusCode === 429\n    ? 'Llegué al límite de la IA por ahora. Probá de nuevo en un rato.'\n    : 'No pude hablar con la IA. Revisá la credencial de Gemini en n8n.');\n}\n\nconst raw = (res.body?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');\nlet ia;\ntry {\n  ia = JSON.parse(raw);\n} catch {\n  return error(esAudio ? 'No te entendí bien el audio. ¿Me lo repetís?' : 'No te entendí. ¿Me lo decís de otra forma?');\n}\n\nconst transcript = esAudio ? (ia.transcripcion || '').trim() : '';\nconst m = ia.movimiento;\nconst monto = Math.round(Math.abs(Number(m?.monto)) * 100) / 100;\n\nif (ia.accion !== 'guardar' || !m || !(monto > 0)) {\n  // \"guardar\" without a usable amount is really a question\n  const accion = ia.accion === 'guardar' ? 'preguntar' : (ia.accion || 'charlar');\n  return [{ json: { accion, response: { text: ia.respuesta || '¿Qué querés anotar?', status: 'success', transcript } } }];\n}\n\nconst fecha = /^\\d{4}-\\d{2}-\\d{2}$/.test(m.fecha || '') ? m.fecha : hoy;\nconst motivo = (m.motivo || '').trim() || 'Sin motivo';\n// Una hora futura de hoy es un error de la IA: se descarta\nlet hora = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(m.hora || '') ? m.hora : '';\nif (hora && fecha === hoy && hora > horaActual) hora = '';\nconst fila = {\n  monto,\n  descripcion: motivo.charAt(0).toUpperCase() + motivo.slice(1),\n  tipo: m.tipo === 'ingreso' ? 'ingreso' : 'gasto',\n  categoria: (m.categoria || 'otros').toLowerCase().trim() || 'otros',\n  fecha,\n  observacion: (m.observacion || '').trim(),\n  // Los listados ordenan y agrupan por created_at, así que lleva el momento real del movimiento:\n  // la hora que dijo; si no dijo, ahora (si es hoy) o el mediodía de ese día\n  created_at: hora ? fecha + 'T' + hora + ':00-03:00' : (fecha === hoy ? new Date().toISOString() : fecha + 'T12:00:00-03:00'),\n};\n\nreturn [{ json: { accion: 'guardar', fila, response: { text: ia.respuesta, status: 'success', transcript } } }];"
-      }
-    },
-    {
-      "id": "d1344abe-c302-4928-90b8-785139d7d3c4",
-      "name": "¿Guardar?",
+      "id": "92112542-f8c1-4899-91b4-7ec7a343aeaf",
+      "name": "¿Es audio?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1760,
-        220
+        1320,
+        300
       ],
       "parameters": {
         "conditions": {
@@ -238,12 +230,13 @@
           },
           "conditions": [
             {
-              "id": "7366eb12-6400-4af6-88c6-6e6917b3d8f9",
-              "leftValue": "={{ $json.accion }}",
-              "rightValue": "guardar",
+              "id": "cc6386e8-73e5-4181-a56f-9e05825f8b93",
+              "leftValue": "={{ $json.esAudio }}",
+              "rightValue": "",
               "operator": {
-                "type": "string",
-                "operation": "equals"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -253,108 +246,172 @@
       }
     },
     {
-      "id": "d224be1c-42c5-46c1-9d11-8e486d2d9122",
-      "name": "Guardar movimiento",
+      "id": "a8132613-e365-4baa-981e-bb2e1e0192df",
+      "name": "Transcribir audio",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
-        120
+        1540,
+        200
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/transactions",
-        "sendHeaders": true,
-        "headerParameters": {
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
           "parameters": [
             {
-              "name": "apikey",
-              "value": "={{ $('Chat de Wally').first().json.headers.apikey }}"
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "audio"
             },
             {
-              "name": "Authorization",
-              "value": "={{ $('Chat de Wally').first().json.headers.authorization }}"
+              "name": "model",
+              "value": "={{ $('Config').first().json.modeloAudio }}"
             },
             {
-              "name": "Prefer",
-              "value": "return=representation"
+              "name": "language",
+              "value": "es"
+            },
+            {
+              "name": "response_format",
+              "value": "json"
             }
           ]
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.fila) }}",
         "options": {
           "response": {
             "response": {
-              "fullResponse": true,
-              "neverError": true
+              "fullResponse": true
             }
-          }
+          },
+          "timeout": 60000
         }
       },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "id": "3dd88896-a59a-4a9b-90c1-6cac7abb5d7e",
-      "name": "Armar respuesta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2200,
-        120
-      ],
-      "parameters": {
-        "jsCode": "// Confirma lo guardado; si Supabase lo rechazó, avisa sin perder lo que dijo el usuario\nconst res = $input.first().json;\nconst previo = $('Interpretar').first().json.response;\n\nif (res.statusCode !== 201) {\n  return [{ json: { response: { text: 'Entendí el movimiento pero no lo pude guardar. Probá de nuevo.', status: 'error', transcript: previo.transcript } } }];\n}\n\nconst guardado = Array.isArray(res.body) ? res.body[0] : res.body;\nreturn [{ json: { response: { ...previo, saved: guardado } } }];"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Groq API key"
+        }
       }
     },
     {
-      "id": "95f18f13-7dcc-4699-98fa-80576d995c85",
+      "id": "b3c6b143-d2c8-414d-b2d4-cd7bb8ca88e1",
+      "name": "Armar pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Arma el pedido al modelo de chat con la fecha y hora reales, el historial y el texto\n// (escrito, o lo que transcribió Whisper)\nconst statusDe = (res) => {\n  const err = res.error;\n  return res.statusCode ?? (Number(\n    err?.httpCode ?? err?.status ?? err?.response?.status ?? (String(err?.message ?? err ?? '').match(/\\b([45]\\d\\d)\\b/) || [])[1]\n  ) || undefined);\n};\nconst detalleDe = (res) => {\n  const parse = (v) => { if (typeof v !== 'string') return v ?? {}; try { return JSON.parse(v); } catch { const m = v.replace(/\\\\\"/g, '\"').match(/\\{[\\s\\S]*\\}/); try { return m ? JSON.parse(m[0]) : {}; } catch { return {}; } } };\n  const body = parse(res.body);\n  const desc = parse(res.error?.description) ;\n  const msg = parse(res.error?.message);\n  return body.error?.message || desc.error?.message || msg.error?.message || res.error?.message || 'sin respuesta';\n};\nconst fallo = (res, que) => {\n  const status = statusDe(res);\n  if (status === 429) return 'Llegué al límite de la IA por ahora. Probá de nuevo en un rato.';\n  if (status >= 500) return 'La IA no responde en este momento. Probá de nuevo en unos segundos.';\n  return 'No pude ' + que + ' (Groq ' + (status ?? '-') + ': ' + detalleDe(res) + ')';\n};\nconst config = $('Config').first().json;\nconst p = $('Preparar pedido').first().json;\n\nlet texto = p.texto;\nlet transcript = '';\nif (p.esAudio) {\n  const res = $input.first().json;\n  if (statusDe(res) !== 200) return [{ json: { listo: false, response: { text: fallo(res, 'escuchar el audio'), status: 'error' } } }];\n  transcript = String(res.body?.text ?? '').trim();\n  if (!transcript) return [{ json: { listo: false, response: { text: 'No escuché nada en el audio. ¿Me lo repetís?', status: 'error' } } }];\n  texto = transcript;\n}\n\n// Resistencia, Chaco (UTC-3, sin horario de verano). Siempre la hora real del servidor, nunca la del modelo\nconst tz = 'America/Argentina/Cordoba';\nconst ahora = new Date();\nconst hoy = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora);\nconst hora = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ahora);\nconst fechaLarga = new Intl.DateTimeFormat('es-AR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(ahora);\n\nconst instrucciones = [\n  'Sos Wally, un asistente que anota los gastos e ingresos de una persona de Argentina.',\n  'Ahora es ' + fechaLarga + ', ' + hora + ' hs (' + hoy + ', hora de Resistencia, Chaco, Argentina, UTC-3). Usá siempre esta fecha y hora como \"ahora\"; no supongas otra.',\n  'Los mensajes pueden venir de un audio transcripto automáticamente, con errores de transcripción y modismos: \"lucas\" o \"luquitas\" son miles, \"palo\" es un millón.',\n  '',\n  'Elegí una acción:',\n  '- \"guardar\": el mensaje describe un gasto o ingreso y el monto está claro.',\n  '- \"preguntar\": describe un movimiento pero falta el monto; preguntá solo lo que falta. Usá el historial para completar datos dichos antes.',\n  '- \"charlar\": saludos u otra cosa; respondé breve y recordá que podés anotar gastos e ingresos.',\n  '',\n  'Campos del movimiento:',\n  '- monto: número positivo, sin signos ni separadores de miles.',\n  '- motivo: corto, qué fue (ej. \"Supermercado\", \"Sueldo\", \"Nafta\").',\n  '- tipo: \"gasto\" o \"ingreso\".',\n  '- categoria: una de ' + config.categorias + '.',\n  '- fecha: YYYY-MM-DD. Resolvé \"ayer\", \"anoche\", \"el viernes\", \"el 3\", etc. respecto de ahora. Si no la dice, es hoy. Nunca una fecha futura salvo que lo diga explícitamente.',\n  '- hora: HH:MM (24 hs) solo si dice cuándo fue (\"a las 9\", \"al mediodía\", \"anoche\" ≈ 22:00). Si no lo dice, \"\".',\n  '- observacion: detalles extra que haya dicho (con quién, dónde, forma de pago, en cuotas, etc.). \"\" si no hay.',\n  '',\n  'respuesta: texto breve en español rioplatense (voseo) para mostrarle. Si la acción es \"guardar\", NO digas que ya lo anotaste: la persona lo revisa y lo confirma; decí algo como \"¿Lo guardo así?\".',\n  '',\n  'Respondé SOLO con un objeto JSON con esta forma:',\n  '{\"accion\": \"guardar\" | \"preguntar\" | \"charlar\", \"respuesta\": \"...\", \"movimiento\": {\"monto\": 0, \"motivo\": \"\", \"tipo\": \"gasto\", \"categoria\": \"\", \"fecha\": \"YYYY-MM-DD\", \"hora\": \"\", \"observacion\": \"\"} | null}',\n].join('\\n');\n\nconst chatRequest = {\n  model: config.modeloChat,\n  temperature: 0.2,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'system', content: instrucciones }, ...p.historial, { role: 'user', content: texto }],\n};\n// Los modelos gpt-oss razonan antes de responder; con poco esfuerzo alcanza y responde más rápido\nif (String(config.modeloChat).startsWith('openai/gpt-oss')) chatRequest.reasoning_effort = 'low';\n\nreturn [{ json: { listo: true, chatRequest, transcript, hoy, hora } }];"
+      }
+    },
+    {
+      "id": "eaa8490b-181a-4510-ba0c-71b8b4e3b782",
+      "name": "¿Listo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "73f1bad9-f945-42b4-ac0b-f02f39820b90",
+              "leftValue": "={{ $json.listo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9c07dbd5-8db4-42f7-aff7-fe803fd936ff",
+      "name": "Groq",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.chatRequest) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Groq API key"
+        }
+      }
+    },
+    {
+      "id": "c04ca819-32af-4073-b706-059a4f5e1876",
+      "name": "Interpretar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        220
+      ],
+      "parameters": {
+        "jsCode": "// Lee la respuesta del modelo y arma el borrador del movimiento. No guarda nada:\n// la app lo muestra para que la persona lo revise, edite o confirme\nconst statusDe = (res) => {\n  const err = res.error;\n  return res.statusCode ?? (Number(\n    err?.httpCode ?? err?.status ?? err?.response?.status ?? (String(err?.message ?? err ?? '').match(/\\b([45]\\d\\d)\\b/) || [])[1]\n  ) || undefined);\n};\nconst detalleDe = (res) => {\n  const parse = (v) => { if (typeof v !== 'string') return v ?? {}; try { return JSON.parse(v); } catch { const m = v.replace(/\\\\\"/g, '\"').match(/\\{[\\s\\S]*\\}/); try { return m ? JSON.parse(m[0]) : {}; } catch { return {}; } } };\n  const body = parse(res.body);\n  const desc = parse(res.error?.description) ;\n  const msg = parse(res.error?.message);\n  return body.error?.message || desc.error?.message || msg.error?.message || res.error?.message || 'sin respuesta';\n};\nconst fallo = (res, que) => {\n  const status = statusDe(res);\n  if (status === 429) return 'Llegué al límite de la IA por ahora. Probá de nuevo en un rato.';\n  if (status >= 500) return 'La IA no responde en este momento. Probá de nuevo en unos segundos.';\n  return 'No pude ' + que + ' (Groq ' + (status ?? '-') + ': ' + detalleDe(res) + ')';\n};\nconst res = $input.first().json;\nconst { hoy, hora: horaActual, transcript } = $('Armar pedido').first().json;\nconst error = (text) => [{ json: { response: { text, status: 'error', transcript } } }];\n\nif (statusDe(res) !== 200) return error(fallo(res, 'hablar con la IA'));\n\nlet ia;\ntry {\n  ia = JSON.parse(res.body?.choices?.[0]?.message?.content ?? '');\n} catch {\n  return error(transcript ? 'No te entendí bien el audio. ¿Me lo repetís?' : 'No te entendí. ¿Me lo decís de otra forma?');\n}\n\nconst m = ia.movimiento;\nconst monto = Math.round(Math.abs(Number(m?.monto)) * 100) / 100;\n\nif (ia.accion !== 'guardar' || !m || !(monto > 0)) {\n  // \"guardar\" without a usable amount is really a question\n  const pregunta = ia.accion === 'guardar' ? '¿De cuánto fue?' : '¿Qué querés anotar?';\n  return [{ json: { response: { text: ia.respuesta || pregunta, status: 'success', transcript } } }];\n}\n\nconst fecha = /^\\d{4}-\\d{2}-\\d{2}$/.test(m.fecha || '') ? m.fecha : hoy;\nconst motivo = String(m.motivo || '').trim() || 'Sin motivo';\n// Una hora futura de hoy es un error de la IA: se descarta\nlet hora = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(m.hora || '') ? m.hora : '';\nif (hora && fecha === hoy && hora > horaActual) hora = '';\nconst draft = {\n  monto,\n  descripcion: motivo.charAt(0).toUpperCase() + motivo.slice(1),\n  tipo: m.tipo === 'ingreso' ? 'ingreso' : 'gasto',\n  categoria: String(m.categoria || 'otros').toLowerCase().trim() || 'otros',\n  fecha,\n  hora,\n  observacion: String(m.observacion || '').trim(),\n};\n\nreturn [{ json: { response: { text: ia.respuesta || '¿Lo guardo así?', status: 'success', transcript, draft } } }];"
+      }
+    },
+    {
+      "id": "1ac853d6-bde2-441a-8cbf-a9d7dc4b88bf",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        2420,
-        240
+        2640,
+        320
       ],
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($json.response) }}",
         "options": {}
-      }
-    },
-    {
-      "id": "c48af2b9-6236-4b99-b41b-7f0f3db403f6",
-      "name": "Sin sesión",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        880,
-        420
-      ],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ text: \"Tu sesión venció. Volvé a iniciar sesión.\", status: \"error\" }) }}",
-        "options": {
-          "responseCode": 401
-        }
-      }
-    },
-    {
-      "id": "f3aa50c9-1042-4a61-a796-5b5cac158e54",
-      "name": "Mensaje vacío",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        1320,
-        40
-      ],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ text: \"No me llegó ningún mensaje.\", status: \"error\" }) }}",
-        "options": {
-          "responseCode": 400
-        }
       }
     }
   ],
@@ -432,40 +489,58 @@
         ],
         [
           {
-            "node": "Gemini",
+            "node": "¿Es audio?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Gemini": {
+    "¿Es audio?": {
       "main": [
         [
           {
-            "node": "Interpretar",
+            "node": "Transcribir audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar pedido",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Interpretar": {
+    "Transcribir audio": {
       "main": [
         [
           {
-            "node": "¿Guardar?",
+            "node": "Armar pedido",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "¿Guardar?": {
+    "Armar pedido": {
       "main": [
         [
           {
-            "node": "Guardar movimiento",
+            "node": "¿Listo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Listo?": {
+      "main": [
+        [
+          {
+            "node": "Groq",
             "type": "main",
             "index": 0
           }
@@ -479,18 +554,18 @@
         ]
       ]
     },
-    "Guardar movimiento": {
+    "Groq": {
       "main": [
         [
           {
-            "node": "Armar respuesta",
+            "node": "Interpretar",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Armar respuesta": {
+    "Interpretar": {
       "main": [
         [
           {

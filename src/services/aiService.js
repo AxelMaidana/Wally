@@ -30,4 +30,16 @@ export const processChatMessage = async (message, history = []) => {
     return data;
 };
 
+// Movements are dated in Argentina time (UTC-3). Lists sort and group by created_at, so it carries
+// the real moment: the spoken time, or now if it's today, or noon of that day
+const createdAt = (fecha, hora) => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Cordoba" }).format(new Date());
+    if (hora) return `${fecha}T${hora}:00-03:00`;
+    return fecha === today ? new Date().toISOString() : `${fecha}T12:00:00-03:00`;
+};
+
+// Saves a draft the user confirmed in the chat (RLS sets it as theirs)
+export const saveTransaction = ({ hora, ...fields }) =>
+    supabase.from("transactions").insert({ ...fields, created_at: createdAt(fields.fecha, hora) }).select().single();
+
 export const undoTransaction = (id) => supabase.from("transactions").delete().eq("id", id);

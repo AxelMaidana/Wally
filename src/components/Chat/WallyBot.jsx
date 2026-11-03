@@ -8,26 +8,12 @@ import {
     Square,
     RotateCcw
 } from 'lucide-react';
-import { processChatMessage, undoTransaction } from '../../services/aiService';
+import { processChatMessage, saveTransaction, undoTransaction } from '../../services/aiService';
+import { DraftCard } from './DraftCard';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { OPEN_WALLY_EVENT } from './wallyEvents';
 import { cn } from '../../lib/utils';
 import { sidebarSpring, softSpring } from '../../lib/motion';
-
-const capitalize = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
-
-// "2026-11-03" -> "hoy" / "ayer" / "1 nov"
-const formatDay = (iso) => {
-    if (!iso) return "hoy";
-    const [y, m, d] = iso.split("-").map(Number);
-    const day = new Date(y, m - 1, d);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diff = Math.round((today - day) / 864e5);
-    if (diff === 0) return "hoy";
-    if (diff === 1) return "ayer";
-    return day.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
-};
 
 const useMediaQuery = (query) => {
     const [matches, setMatches] = useState(() => matchMedia(query).matches);
@@ -125,7 +111,9 @@ export const WallyBot = () => {
         text: response.text,
         isBot: true,
         status: response.status,
-        saved: response.saved,
+        // What Wally understood; nothing is saved until the person confirms it on the card
+        draft: response.draft,
+        draftStatus: response.draft ? "pending" : undefined,
     }]);
 
     const addError = (text) => setMessages((prev) => [...prev, { id: Date.now() + 1, text, isBot: true, status: "error", local: true }]);
@@ -172,16 +160,32 @@ export const WallyBot = () => {
         }
     };
 
+    const updateMessage = (id, fields) => setMessages((prev) => prev.map((m) => m.id === id ? { ...m, ...fields } : m));
+
+    const handleSaveDraft = async (msg, draft) => {
+        updateMessage(msg.id, { draft, draftStatus: "saving" });
+        const { data, error } = await saveTransaction(draft);
+        if (error) {
+            console.error("Save Error:", error);
+            updateMessage(msg.id, { draftStatus: "pending" });
+            addError("No lo pude guardar. Probá de nuevo.");
+            return;
+        }
+        updateMessage(msg.id, { draftStatus: "saved", saved: data });
+    };
+
+    const handleRedo = (msg) => {
+        updateMessage(msg.id, { draftStatus: "discarded" });
+        if (!isRecording && !isLoading) startRecording();
+    };
+
     const handleUndo = async (msg) => {
         const { error } = await undoTransaction(msg.saved.id);
         if (error) {
             addError("No lo pude deshacer. Borralo desde Movimientos.");
             return;
         }
-        setMessages((prev) => [
-            ...prev.map((m) => m.id === msg.id ? { ...m, undone: true } : m),
-            { id: Date.now(), text: "Listo, lo saqué.", isBot: true },
-        ]);
+        updateMessage(msg.id, { draftStatus: "undone" });
     };
 
     const clearChat = () => {
@@ -244,8 +248,8 @@ export const WallyBot = () => {
                             aria-live="polite"
                         >
                             {messages.map((msg) => (
+                                <React.Fragment key={msg.id}>
                                 <motion.div
-                                    key={msg.id}
                                     // Bubbles grow out of their own corner, like iMessage
                                     initial={{ opacity: 0, y: 10, scale: 0.92 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -262,26 +266,18 @@ export const WallyBot = () => {
                                     )}>
                                         {msg.isAudio && <Mic size={14} className="inline mr-1.5 -mt-0.5" />}
                                         {msg.text}
-                                        {msg.saved && (
-                                            <span className="mt-2 flex items-center justify-between gap-3 border-t border-hairline pt-2 text-[13px] text-ink-2">
-                                                <span className="truncate">
-                                                    {msg.saved.observacion || `${capitalize(msg.saved.categoria)} · ${formatDay(msg.saved.fecha)}`}
-                                                </span>
-                                                {msg.undone ? (
-                                                    <span className="shrink-0">Deshecho</span>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleUndo(msg)}
-                                                        className="shrink-0 font-semibold text-[#0a84ff] hover:opacity-80"
-                                                    >
-                                                        Deshacer
-                                                    </button>
-                                                )}
-                                            </span>
-                                        )}
                                     </div>
                                 </motion.div>
+                                {msg.draft && (
+                                    <DraftCard
+                                        draft={msg.draft}
+                                        status={msg.draftStatus}
+                                        onSave={(draft) => handleSaveDraft(msg, draft)}
+                                        onRedo={() => handleRedo(msg)}
+                                        onUndo={() => handleUndo(msg)}
+                                    />
+                                )}
+                                </React.Fragment>
                             ))}
 
                             <AnimatePresence>
