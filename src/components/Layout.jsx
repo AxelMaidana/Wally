@@ -22,7 +22,7 @@ const Layout = ({ children }) => {
                     transition={{ duration: 0.3, ease: iosEase }}
                     className="glass-panel flex-1 min-h-0 overflow-y-auto md:rounded-[2rem]"
                 >
-                    <main className="px-4 py-6 md:px-8 md:py-8">
+                    <main className="px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-8">
                         {children}
                     </main>
                 </motion.div>

@@ -14,6 +14,37 @@ import { OPEN_WALLY_EVENT } from './wallyEvents';
 import { cn } from '../../lib/utils';
 import { sidebarSpring, softSpring } from '../../lib/motion';
 
+const useMediaQuery = (query) => {
+    const [matches, setMatches] = useState(() => matchMedia(query).matches);
+    useEffect(() => {
+        const mql = matchMedia(query);
+        const onChange = () => setMatches(mql.matches);
+        mql.addEventListener("change", onChange);
+        return () => mql.removeEventListener("change", onChange);
+    }, [query]);
+    return matches;
+};
+
+// The area left visible by the on-screen keyboard. iOS Safari keeps 100dvh at full height
+// when the keyboard opens and pans the page instead, which pushes the sheet out of view.
+const useVisualViewport = (active) => {
+    const [box, setBox] = useState(null);
+    useEffect(() => {
+        const vv = window.visualViewport;
+        if (!active || !vv) return;
+        const update = () => setBox({ top: vv.offsetTop, height: vv.height });
+        update();
+        vv.addEventListener("resize", update);
+        vv.addEventListener("scroll", update);
+        return () => {
+            vv.removeEventListener("resize", update);
+            vv.removeEventListener("scroll", update);
+            setBox(null);
+        };
+    }, [active]);
+    return box;
+};
+
 // iMessage-style "typing" bubble
 const TypingDots = () => (
     <div className="bg-tile-strong rounded-[20px] rounded-bl-md px-4 py-3.5 flex items-center gap-1" role="status" aria-label="Wally está escribiendo">
@@ -47,8 +78,13 @@ export const WallyBot = () => {
         return () => window.removeEventListener(OPEN_WALLY_EVENT, open);
     }, []);
 
+    // On phones the chat is a full-screen sheet. Opening the keyboard by itself would hide
+    // half of it, so only focus right away where there's a mouse.
+    const isPhone = useMediaQuery("(max-width: 639px)");
+    const viewport = useVisualViewport(isOpen && isPhone);
+
     useEffect(() => {
-        if (isOpen) inputRef.current?.focus();
+        if (isOpen && matchMedia("(pointer: fine)").matches) inputRef.current?.focus();
     }, [isOpen]);
 
     // Auto-scroll to bottom
@@ -138,7 +174,7 @@ export const WallyBot = () => {
     const showConfirmationButtons = lastBotMessage?.isBot && lastBotMessage.text.includes("¿Deseas subir esta información?");
 
     return (
-        <div className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-50 flex flex-col items-end">
+        <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6 z-50 flex flex-col items-end">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
@@ -146,12 +182,19 @@ export const WallyBot = () => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 16, scale: 0.96 }}
                         transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
-                        style={{ transformOrigin: 'bottom right' }}
-                        className="glass-panel w-[calc(100vw-2rem)] sm:w-[380px] h-[min(560px,calc(100dvh-7rem))] rounded-[2rem] flex flex-col overflow-hidden mb-3"
+                        style={isPhone
+                            ? { transformOrigin: 'bottom center', top: viewport?.top ?? 0, height: viewport?.height ?? '100dvh' }
+                            : { transformOrigin: 'bottom right' }}
+                        className={cn(
+                            "glass-panel flex flex-col overflow-hidden",
+                            isPhone
+                                ? "fixed inset-x-0 z-[60] rounded-none border-0"
+                                : "w-[380px] h-[min(560px,calc(100dvh-7rem))] rounded-[2rem] mb-3"
+                        )}
                         role="dialog"
                         aria-label="Chat con Wally"
                     >
-                        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-hairline">
+                        <div className={cn("flex items-center justify-between px-5 pt-4 pb-3 border-b border-hairline", isPhone && "pt-[calc(1rem+env(safe-area-inset-top))]")}>
                             <div className="flex items-center gap-3">
                                 <span className="w-9 h-9 rounded-full bg-ink text-background flex items-center justify-center font-semibold">W</span>
                                 <div>
@@ -182,7 +225,7 @@ export const WallyBot = () => {
 
                         <div
                             ref={scrollRef}
-                            className="flex-1 overflow-y-auto px-4 py-4 space-y-2 scroll-smooth"
+                            className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-2 scroll-smooth"
                             aria-live="polite"
                         >
                             {messages.map((msg) => (
@@ -246,14 +289,14 @@ export const WallyBot = () => {
                             </AnimatePresence>
                         </div>
 
-                        <div className="p-3 border-t border-hairline">
+                        <div className={cn("p-3 border-t border-hairline", isPhone && "pb-[calc(0.75rem+env(safe-area-inset-bottom))]")}>
                             <div className="flex items-center gap-1.5 rounded-full bg-tile border border-hairline pl-4 pr-1.5 h-12 focus-within:border-ring transition-colors">
                                 <input
                                     ref={inputRef}
                                     type="text"
                                     placeholder="Gasté 4500 en el súper…"
                                     aria-label="Mensaje para Wally"
-                                    className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-ink placeholder:text-ink-3"
+                                    className="flex-1 min-w-0 bg-transparent outline-none text-base sm:text-[15px] text-ink placeholder:text-ink-3"
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
@@ -312,9 +355,11 @@ export const WallyBot = () => {
                 )}
             </AnimatePresence>
 
+            {/* On phones the open sheet covers the screen and has its own close button */}
             <motion.button
                 type="button"
                 whileTap={{ scale: 0.94 }}
+                hidden={isOpen && isPhone}
                 onClick={() => setIsOpen(!isOpen)}
                 className="glass-panel w-14 h-14 rounded-full flex items-center justify-center text-ink"
                 aria-label={isOpen ? "Cerrar chat" : "Abrir chat con Wally"}

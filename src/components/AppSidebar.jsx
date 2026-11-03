@@ -49,7 +49,7 @@ const SidebarContent = ({ collapsed, onNavigate }) => {
 
     return (
         <div className="flex flex-col h-full min-h-0 overflow-hidden">
-            <div className="flex items-center gap-3 px-1.5 pt-1 pb-5">
+            <div className={cn("flex items-center gap-3 px-1.5 pt-1 pb-5", onNavigate && "pr-10")}>
                 <img src={avatar} className="h-10 w-10 shrink-0 rounded-full object-cover" alt="" />
                 <Label collapsed={collapsed} className="min-w-0 flex flex-col">
                     <span className="text-[15px] font-semibold text-ink truncate">{displayName}</span>
@@ -64,7 +64,8 @@ const SidebarContent = ({ collapsed, onNavigate }) => {
                         to={href}
                         end
                         onClick={onNavigate}
-                        onMouseEnter={() => setHovered(href)}
+                        // Touch would leave the hover pill stuck on the tapped item
+                        onPointerEnter={(e) => e.pointerType === "mouse" && setHovered(href)}
                         onFocus={() => setHovered(href)}
                         title={collapsed ? label : undefined}
                         className={({ isActive }) => cn(
