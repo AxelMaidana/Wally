@@ -47,7 +47,8 @@ const TransactionRow = ({ row, hovered, onHover, confirming, onAskDelete, onCanc
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: -24, transition: { duration: 0.2 } }}
             transition={sidebarSpring}
-            onMouseEnter={() => onHover(row.id)}
+            // Touch would leave the hover pill stuck on the tapped row
+            onPointerEnter={(e) => e.pointerType === 'mouse' && onHover(row.id)}
             className="group relative flex items-center gap-3 px-3 py-3 rounded-2xl"
         >
             {hovered && (
@@ -102,7 +103,8 @@ const TransactionRow = ({ row, hovered, onHover, confirming, onAskDelete, onCanc
                         <button
                             type="button"
                             onClick={() => onAskDelete(row.id)}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-ink-3 hover:text-gasto hover:bg-tile-strong opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                            // Shown on hover with a mouse; always visible on touch screens, which have no hover
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-ink-3 hover:text-gasto hover:bg-tile-strong opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity"
                             aria-label={`Borrar ${row.descripcion || 'movimiento'}`}
                         >
                             <Trash2 size={16} />
