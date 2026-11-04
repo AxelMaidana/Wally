@@ -11,10 +11,7 @@ export const processChatMessage = async (message, history = []) => {
         return { text: "Falta configurar VITE_N8N_WEBHOOK_URL con la URL del webhook de n8n.", status: "error" };
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return { text: "Tu sesión venció. Volvé a iniciar sesión.", status: "error" };
-
-    const response = await fetch(WEBHOOK_URL, {
+    const send = (session) => fetch(WEBHOOK_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -23,6 +20,21 @@ export const processChatMessage = async (message, history = []) => {
         },
         body: JSON.stringify({ ...message, history }),
     });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { text: "Tu sesión venció. Volvé a iniciar sesión.", status: "error" };
+
+    let response = await send(session);
+    // The workflow rejected the session: try a fresh token once; if Supabase no longer knows
+    // this session (closed from another device), sign out here so the app shows the login
+    if (response.status === 401) {
+        const { data: refreshed, error } = await supabase.auth.refreshSession();
+        if (error || !refreshed.session) {
+            await supabase.auth.signOut({ scope: "local" });
+            return { text: "Tu sesión se cerró. Volvé a iniciar sesión.", status: "error" };
+        }
+        response = await send(refreshed.session);
+    }
 
     // The workflow answers errors with a message for the user too; anything else is a broken setup
     const data = await response.json().catch(() => null);

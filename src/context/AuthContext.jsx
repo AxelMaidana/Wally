@@ -52,7 +52,9 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
-        const { error } = await supabase.auth.signOut();
+        // "local" ends only this device's session; the default ("global") would also
+        // revoke the ones open on the phone or other tabs
+        const { error } = await supabase.auth.signOut({ scope: "local" });
         if (error) throw error;
     };
 
